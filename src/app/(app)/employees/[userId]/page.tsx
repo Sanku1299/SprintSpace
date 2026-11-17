@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
 import { getWorkspaceMember } from "@/lib/members/workspace-members";
+import { MemberRoleEditor } from "@/components/members/MemberRoleEditor";
 import type { CompanyRole } from "@/models/User";
 
 const ROLE_LABELS: Record<CompanyRole, string> = {
@@ -106,6 +107,17 @@ export default async function EmployeeDetailsPage({
                 {formatDate(member.createdAt)}
               </p>
             </div>
+          </div>
+
+          <div className="mt-6 border-t border-slate-200 pt-6">
+            <h2 className="mb-3 text-lg font-semibold text-slate-950">Manage role</h2>
+            {member.id === context.userId ? (
+              <p className="rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+                You can’t change your own role. Ask another workspace Admin to update it.
+              </p>
+            ) : (
+              <MemberRoleEditor userId={member.id} role={member.role} />
+            )}
           </div>
         </div>
       </section>
