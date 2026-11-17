@@ -35,6 +35,9 @@ yarn-error.log*
 .env*
 !.env.example
 
+# Local-only project reference
+SprintSpace_Visual_User_Flow_and_UI_Reference.docx
+
 # vercel
 .vercel
 
