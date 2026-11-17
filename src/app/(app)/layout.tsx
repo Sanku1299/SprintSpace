@@ -20,6 +20,14 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
             SprintSpace
           </Link>
           <div className="flex items-center gap-4">
+            {session.user.role === "admin" ? (
+              <Link
+                href="/employees"
+                className="text-sm font-medium text-slate-600 transition hover:text-indigo-700"
+              >
+                Employees
+              </Link>
+            ) : null}
             <span className="hidden text-sm text-slate-600 sm:inline">
               {session.user.name ?? session.user.email}
             </span>
