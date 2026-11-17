@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createInvitationToken, INVITATION_TTL_MS } from "@/lib/auth/invitation-token";
+import { isDuplicatePendingInvitationError } from "@/lib/auth/invitation-errors";
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
 import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { connectToDatabase } from "@/lib/db/mongoose";
@@ -45,6 +46,16 @@ export async function POST(request: Request): Promise<Response> {
       return errorResponse(409, "ACCOUNT_ALREADY_EXISTS", "An account already uses this email.");
     }
 
+    const now = new Date();
+    await Invitation.findOneAndUpdate(
+      workspaceScopedFilter(context, {
+        email: parsed.data.email,
+        status: "pending",
+        expiresAt: { $lte: now },
+      }),
+      { $set: { status: "expired" } },
+    );
+
     const existingInvitation = await Invitation.findOne(
       workspaceScopedFilter(context, {
         email: parsed.data.email,
@@ -61,7 +72,7 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const { token, tokenHash } = createInvitationToken();
-    const expiresAt = new Date(Date.now() + INVITATION_TTL_MS);
+    const expiresAt = new Date(now.getTime() + INVITATION_TTL_MS);
     const invitation = await Invitation.create({
       workspaceId: context.workspaceId,
       email: parsed.data.email,
@@ -90,7 +101,15 @@ export async function POST(request: Request): Promise<Response> {
       },
       { status: 201, headers: { "Cache-Control": "no-store" } },
     );
-  } catch {
+  } catch (error) {
+    if (isDuplicatePendingInvitationError(error)) {
+      return errorResponse(
+        409,
+        "INVITATION_ALREADY_PENDING",
+        "A pending invitation already exists for this email.",
+      );
+    }
+
     return errorResponse(
       503,
       "SERVICE_UNAVAILABLE",

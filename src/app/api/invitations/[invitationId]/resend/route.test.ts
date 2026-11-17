@@ -6,7 +6,14 @@ const state = vi.hoisted(() => {
     invitation: Record<string, unknown> | null;
     existingUser: unknown;
     updatedInvitation: Record<string, unknown> | null;
-  } = { context: null, invitation: null, existingUser: null, updatedInvitation: null };
+    updateError: unknown;
+  } = {
+    context: null,
+    invitation: null,
+    existingUser: null,
+    updatedInvitation: null,
+    updateError: null,
+  };
 
   return {
     values,
@@ -16,13 +23,25 @@ const state = vi.hoisted(() => {
     findUser: vi.fn(() => ({ select: vi.fn(async () => values.existingUser) })),
     updateInvitation: vi.fn(
       (_filter: Record<string, unknown>, _update: Record<string, unknown>, _options: unknown) => ({
-        select: vi.fn(async () => values.updatedInvitation),
+        select: vi.fn(async () => {
+          if (values.updateError) {
+            throw values.updateError;
+          }
+
+          return values.updatedInvitation;
+        }),
       }),
     ),
   };
 });
 
 vi.mock("@/lib/auth/workspace-context", () => ({ getWorkspaceContext: state.getContext }));
+vi.mock("@/lib/auth/workspace-scope", () => ({
+  workspaceScopedFilter: (context: { workspaceId: string }, filter: Record<string, unknown>) => ({
+    ...filter,
+    workspaceId: context.workspaceId,
+  }),
+}));
 vi.mock("@/lib/db/mongoose", () => ({ connectToDatabase: state.connect }));
 vi.mock("@/models/Invitation", () => ({
   Invitation: { findOne: state.findInvitation, findOneAndUpdate: state.updateInvitation },
@@ -45,6 +64,7 @@ describe("POST /api/invitations/:invitationId/resend", () => {
       status: "pending",
     };
     state.values.existingUser = null;
+    state.values.updateError = null;
     state.values.updatedInvitation = {
       _id: { toString: () => invitationId },
       email: "person@example.com",
@@ -94,5 +114,21 @@ describe("POST /api/invitations/:invitationId/resend", () => {
 
     expect(response.status).toBe(404);
     expect(state.updateInvitation).not.toHaveBeenCalled();
+  });
+
+  it("returns a conflict when resend races with another pending invitation", async () => {
+    state.values.invitation = { ...state.values.invitation, status: "expired" };
+    state.values.updateError = {
+      code: 11000,
+      keyPattern: { workspaceId: 1, email: 1 },
+    };
+
+    const response = await POST(new Request("http://localhost"), {
+      params: Promise.resolve({ invitationId }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(body.error.code).toBe("INVITATION_ALREADY_PENDING");
   });
 });

@@ -21,6 +21,12 @@ const state = vi.hoisted(() => {
 });
 
 vi.mock("@/lib/auth/workspace-context", () => ({ getWorkspaceContext: state.getContext }));
+vi.mock("@/lib/auth/workspace-scope", () => ({
+  workspaceScopedFilter: (context: { workspaceId: string }, filter: Record<string, unknown>) => ({
+    ...filter,
+    workspaceId: context.workspaceId,
+  }),
+}));
 vi.mock("@/lib/db/mongoose", () => ({ connectToDatabase: state.connect }));
 vi.mock("@/models/Invitation", () => ({
   Invitation: { findOne: state.findInvitation, findOneAndUpdate: state.updateInvitation },

@@ -66,6 +66,14 @@ const InvitationSchema = new Schema(
 
 InvitationSchema.index({ workspaceId: 1, status: 1 });
 InvitationSchema.index({ expiresAt: 1, status: 1 });
+InvitationSchema.index(
+  { workspaceId: 1, email: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { status: "pending" },
+    name: "unique_pending_invitation_per_workspace_email",
+  },
+);
 
 export type InvitationDocument = InferSchemaType<typeof InvitationSchema>;
 

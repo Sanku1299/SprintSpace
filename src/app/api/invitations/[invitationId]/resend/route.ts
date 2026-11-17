@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { NextResponse } from "next/server";
 
 import { createInvitationToken, INVITATION_TTL_MS } from "@/lib/auth/invitation-token";
+import { isDuplicatePendingInvitationError } from "@/lib/auth/invitation-errors";
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
 import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { connectToDatabase } from "@/lib/db/mongoose";
@@ -87,7 +88,15 @@ export async function POST(_request: Request, { params }: RouteContext): Promise
       },
       { headers: { "Cache-Control": "no-store" } },
     );
-  } catch {
+  } catch (error) {
+    if (isDuplicatePendingInvitationError(error)) {
+      return errorResponse(
+        409,
+        "INVITATION_ALREADY_PENDING",
+        "A pending invitation already exists for this email.",
+      );
+    }
+
     return errorResponse(
       503,
       "SERVICE_UNAVAILABLE",
