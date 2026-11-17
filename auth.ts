@@ -1,0 +1,80 @@
+import NextAuth from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import { z } from "zod";
+
+import { verifyPassword } from "@/lib/auth/password";
+import { connectToDatabase } from "@/lib/db/mongoose";
+import { User } from "@/models/User";
+
+const COMPANY_ROLES = ["admin", "project_manager", "developer", "designer"] as const;
+type CompanyRole = (typeof COMPANY_ROLES)[number];
+
+const credentialsSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  password: z.string().min(1).max(128),
+});
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  session: { strategy: "jwt" },
+  providers: [
+    Credentials({
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        const parsed = credentialsSchema.safeParse(credentials);
+
+        if (!parsed.success) {
+          return null;
+        }
+
+        await connectToDatabase();
+        const user = await User.findOne({ email: parsed.data.email }).select("+passwordHash");
+
+        if (!user || user.status !== "active" || !user.passwordHash) {
+          return null;
+        }
+
+        const validPassword = await verifyPassword(parsed.data.password, user.passwordHash);
+
+        if (!validPassword) {
+          return null;
+        }
+
+        return {
+          id: user._id.toString(),
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          workspaceId: user.workspaceId.toString(),
+        };
+      },
+    }),
+  ],
+  callbacks: {
+    jwt({ token, user }) {
+      if (user) {
+        token.role = user.role;
+        token.workspaceId = user.workspaceId;
+      }
+
+      return token;
+    },
+    session({ session, token }) {
+      if (session.user) {
+        session.user.id = token.sub ?? "";
+
+        if (typeof token.role === "string" && COMPANY_ROLES.includes(token.role as CompanyRole)) {
+          session.user.role = token.role as CompanyRole;
+        }
+
+        if (typeof token.workspaceId === "string") {
+          session.user.workspaceId = token.workspaceId;
+        }
+      }
+
+      return session;
+    },
+  },
+});
