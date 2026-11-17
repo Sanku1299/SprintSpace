@@ -25,7 +25,7 @@ export async function loginAction(
   try {
     await signIn("credentials", {
       ...parsed.data,
-      redirectTo: "/",
+      redirectTo: "/dashboard",
     });
   } catch (error) {
     if (error instanceof AuthError) {

@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import { auth } from "../../../auth";
-import { SignOutButton } from "@/components/auth/SignOutButton";
 
 export default async function HomePage() {
   const session = await auth();
@@ -13,7 +12,12 @@ export default async function HomePage() {
           SprintSpace
         </Link>
         {session?.user ? (
-          <SignOutButton />
+          <Link
+            href="/dashboard"
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-200"
+          >
+            Open dashboard
+          </Link>
         ) : (
           <Link
             href="/login"
@@ -32,13 +36,10 @@ export default async function HomePage() {
           {session?.user ? (
             <>
               <h1 className="mt-5 text-4xl font-semibold tracking-tight sm:text-6xl">
-                Welcome{session.user.name ? `, ${session.user.name}` : " back"}.
+                Welcome back.
               </h1>
               <p className="mt-5 max-w-xl text-lg leading-8 text-slate-600">
-                You’re signed in as {session.user.role.replaceAll("_", " ")}.
-              </p>
-              <p className="mt-3 text-sm text-slate-500">
-                Your project workspace is being prepared.
+                You’re signed in to SprintSpace.
               </p>
             </>
           ) : (
