@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { NextResponse } from "next/server";
 
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
+import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { Invitation } from "@/models/Invitation";
 
@@ -30,10 +31,9 @@ export async function POST(_request: Request, { params }: RouteContext): Promise
     }
 
     await connectToDatabase();
-    const invitation = await Invitation.findOne({
-      _id: invitationId,
-      workspaceId: context.workspaceId,
-    }).select("email status");
+    const invitation = await Invitation.findOne(
+      workspaceScopedFilter(context, { _id: invitationId }),
+    ).select("email status");
 
     if (!invitation) {
       return errorResponse(404, "NOT_FOUND", "Invitation not found.");
@@ -48,7 +48,7 @@ export async function POST(_request: Request, { params }: RouteContext): Promise
     }
 
     const revokedInvitation = await Invitation.findOneAndUpdate(
-      { _id: invitationId, workspaceId: context.workspaceId, status: invitation.status },
+      workspaceScopedFilter(context, { _id: invitationId, status: invitation.status }),
       { $set: { status: "revoked" } },
       { new: true, runValidators: true },
     ).select("email status");

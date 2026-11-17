@@ -1,6 +1,8 @@
 import "server-only";
 
 import { connectToDatabase } from "@/lib/db/mongoose";
+import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
+import type { WorkspaceContext } from "@/lib/auth/workspace-context";
 import { User, type CompanyRole } from "@/models/User";
 
 export type WorkspaceMemberSummary = {
@@ -35,9 +37,11 @@ function toMemberSummary(user: {
   };
 }
 
-export async function listWorkspaceMembers(workspaceId: string): Promise<WorkspaceMemberSummary[]> {
+export async function listWorkspaceMembers(
+  context: Pick<WorkspaceContext, "workspaceId">,
+): Promise<WorkspaceMemberSummary[]> {
   await connectToDatabase();
-  const users = await User.find({ workspaceId })
+  const users = await User.find(workspaceScopedFilter(context, {}))
     .select(MEMBER_FIELDS)
     .sort({ name: 1, _id: 1 })
     .lean();
@@ -46,11 +50,13 @@ export async function listWorkspaceMembers(workspaceId: string): Promise<Workspa
 }
 
 export async function getWorkspaceMember(
-  workspaceId: string,
+  context: Pick<WorkspaceContext, "workspaceId">,
   userId: string,
 ): Promise<WorkspaceMemberSummary | null> {
   await connectToDatabase();
-  const user = await User.findOne({ _id: userId, workspaceId }).select(MEMBER_FIELDS).lean();
+  const user = await User.findOne(workspaceScopedFilter(context, { _id: userId }))
+    .select(MEMBER_FIELDS)
+    .lean();
 
   return user ? toMemberSummary(user) : null;
 }

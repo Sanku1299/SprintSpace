@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { createInvitationToken, INVITATION_TTL_MS } from "@/lib/auth/invitation-token";
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
+import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { Invitation } from "@/models/Invitation";
 import { User } from "@/models/User";
@@ -32,10 +33,9 @@ export async function POST(_request: Request, { params }: RouteContext): Promise
     }
 
     await connectToDatabase();
-    const invitation = await Invitation.findOne({
-      _id: invitationId,
-      workspaceId: context.workspaceId,
-    }).select("email name role status");
+    const invitation = await Invitation.findOne(
+      workspaceScopedFilter(context, { _id: invitationId }),
+    ).select("email name role status");
 
     if (!invitation) {
       return errorResponse(404, "NOT_FOUND", "Invitation not found.");
@@ -57,7 +57,7 @@ export async function POST(_request: Request, { params }: RouteContext): Promise
     const { token, tokenHash } = createInvitationToken();
     const expiresAt = new Date(Date.now() + INVITATION_TTL_MS);
     const updatedInvitation = await Invitation.findOneAndUpdate(
-      { _id: invitationId, workspaceId: context.workspaceId, status: invitation.status },
+      workspaceScopedFilter(context, { _id: invitationId, status: invitation.status }),
       { $set: { tokenHash, status: "pending", expiresAt } },
       { new: true, runValidators: true },
     ).select("email name role status expiresAt");

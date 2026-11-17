@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createInvitationToken, INVITATION_TTL_MS } from "@/lib/auth/invitation-token";
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
+import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { createInvitationSchema } from "@/lib/validation/invitation";
 import { Invitation } from "@/models/Invitation";
@@ -44,11 +45,12 @@ export async function POST(request: Request): Promise<Response> {
       return errorResponse(409, "ACCOUNT_ALREADY_EXISTS", "An account already uses this email.");
     }
 
-    const existingInvitation = await Invitation.findOne({
-      workspaceId: context.workspaceId,
-      email: parsed.data.email,
-      status: "pending",
-    }).select("_id");
+    const existingInvitation = await Invitation.findOne(
+      workspaceScopedFilter(context, {
+        email: parsed.data.email,
+        status: "pending",
+      }),
+    ).select("_id");
 
     if (existingInvitation) {
       return errorResponse(

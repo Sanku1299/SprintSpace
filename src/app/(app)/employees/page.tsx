@@ -32,7 +32,7 @@ export default async function EmployeesPage() {
     redirect("/dashboard");
   }
 
-  const members = await listWorkspaceMembers(context.workspaceId);
+  const members = await listWorkspaceMembers(context);
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10 sm:py-14">

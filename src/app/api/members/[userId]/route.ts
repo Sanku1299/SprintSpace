@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { NextResponse } from "next/server";
 
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
+import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { getWorkspaceMember } from "@/lib/members/workspace-members";
 import { updateMemberRoleSchema } from "@/lib/validation/member";
 import { User } from "@/models/User";
@@ -33,7 +34,7 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
       return errorResponse(404, "NOT_FOUND", "Employee not found.");
     }
 
-    const member = await getWorkspaceMember(context.workspaceId, userId);
+    const member = await getWorkspaceMember(context, userId);
 
     if (!member) {
       return errorResponse(404, "NOT_FOUND", "Employee not found.");
@@ -91,7 +92,7 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
     }
 
     const member = await User.findOneAndUpdate(
-      { _id: memberId, workspaceId: context.workspaceId },
+      workspaceScopedFilter(context, { _id: memberId }),
       { $set: { role: parsed.data.role } },
       { new: true, runValidators: true },
     ).select("_id name email role status avatarUrl createdAt");

@@ -48,7 +48,7 @@ export default async function EmployeeDetailsPage({
     notFound();
   }
 
-  const member = await getWorkspaceMember(context.workspaceId, userId);
+  const member = await getWorkspaceMember(context, userId);
 
   if (!member) {
     notFound();

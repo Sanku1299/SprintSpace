@@ -22,7 +22,7 @@ export async function GET(): Promise<Response> {
       return errorResponse(403, "FORBIDDEN", "You cannot perform this action.");
     }
 
-    const members = await listWorkspaceMembers(context.workspaceId);
+    const members = await listWorkspaceMembers(context);
     return NextResponse.json(
       { success: true, data: { members } },
       { headers: { "Cache-Control": "no-store" } },
