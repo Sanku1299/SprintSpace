@@ -1,18 +1,13 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import { z } from "zod";
 
 import { verifyPassword } from "@/lib/auth/password";
 import { connectToDatabase } from "@/lib/db/mongoose";
+import { credentialsSchema } from "@/lib/validation/auth";
 import { User } from "@/models/User";
 
 const COMPANY_ROLES = ["admin", "project_manager", "developer", "designer"] as const;
 type CompanyRole = (typeof COMPANY_ROLES)[number];
-
-const credentialsSchema = z.object({
-  email: z.string().trim().toLowerCase().email().max(254),
-  password: z.string().min(1).max(128),
-});
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
