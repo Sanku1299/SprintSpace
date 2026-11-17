@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { auth } from "../../../../auth";
+import { getAuthenticatedUser } from "@/lib/auth/current-user";
 import { LoginForm } from "./LoginForm";
 
 export default async function LoginPage() {
-  const session = await auth();
+  const user = await getAuthenticatedUser();
 
-  if (session?.user) {
+  if (user) {
     redirect("/dashboard");
   }
 

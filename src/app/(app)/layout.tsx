@@ -2,13 +2,13 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
-import { auth } from "../../../auth";
 import { SignOutButton } from "@/components/auth/SignOutButton";
+import { getAuthenticatedUser } from "@/lib/auth/current-user";
 
 export default async function AuthenticatedLayout({ children }: { children: ReactNode }) {
-  const session = await auth();
+  const user = await getAuthenticatedUser();
 
-  if (!session?.user) {
+  if (!user) {
     redirect("/login");
   }
 
@@ -20,7 +20,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
             SprintSpace
           </Link>
           <div className="flex items-center gap-4">
-            {session.user.role === "admin" ? (
+            {user.role === "admin" ? (
               <Link
                 href="/employees"
                 className="text-sm font-medium text-slate-600 transition hover:text-indigo-700"
@@ -29,7 +29,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
               </Link>
             ) : null}
             <span className="hidden text-sm text-slate-600 sm:inline">
-              {session.user.name ?? session.user.email}
+              {user.name ?? user.email}
             </span>
             <SignOutButton />
           </div>

@@ -1,7 +1,7 @@
-import { auth } from "../../../../auth";
+import { getAuthenticatedUser } from "@/lib/auth/current-user";
 
 export default async function DashboardPage() {
-  const session = await auth();
+  const user = await getAuthenticatedUser();
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">
@@ -9,7 +9,7 @@ export default async function DashboardPage() {
         Workspace dashboard
       </p>
       <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-        Welcome{session?.user.name ? `, ${session.user.name}` : " back"}.
+        Welcome{user?.name ? `, ${user.name}` : " back"}.
       </h1>
       <p className="mt-3 max-w-2xl text-slate-600">
         Your workspace is ready for project setup. Role-based project views will be added in the

@@ -1,10 +1,7 @@
 import "server-only";
 
-import mongoose from "mongoose";
-
-import { auth } from "../../../auth";
-import { connectToDatabase } from "@/lib/db/mongoose";
-import { USER_ROLES, User, type CompanyRole } from "@/models/User";
+import { getAuthenticatedUser } from "@/lib/auth/current-user";
+import type { CompanyRole } from "@/models/User";
 
 export type WorkspaceContext = {
   userId: string;
@@ -13,23 +10,15 @@ export type WorkspaceContext = {
 };
 
 export async function getWorkspaceContext(): Promise<WorkspaceContext | null> {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const user = await getAuthenticatedUser();
 
-  if (!userId || !mongoose.isValidObjectId(userId)) {
-    return null;
-  }
-
-  await connectToDatabase();
-  const user = await User.findById(userId).select("workspaceId role status");
-
-  if (!user || user.status !== "active" || !USER_ROLES.includes(user.role as CompanyRole)) {
+  if (!user) {
     return null;
   }
 
   return {
-    userId: user._id.toString(),
-    workspaceId: user.workspaceId.toString(),
-    role: user.role as CompanyRole,
+    userId: user.id,
+    workspaceId: user.workspaceId,
+    role: user.role,
   };
 }
