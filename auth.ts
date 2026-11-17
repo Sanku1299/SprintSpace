@@ -4,10 +4,7 @@ import Credentials from "next-auth/providers/credentials";
 import { verifyPassword } from "@/lib/auth/password";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { credentialsSchema } from "@/lib/validation/auth";
-import { User } from "@/models/User";
-
-const COMPANY_ROLES = ["admin", "project_manager", "developer", "designer"] as const;
-type CompanyRole = (typeof COMPANY_ROLES)[number];
+import { USER_ROLES, User, type CompanyRole } from "@/models/User";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
@@ -60,7 +57,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         session.user.id = token.sub ?? "";
 
-        if (typeof token.role === "string" && COMPANY_ROLES.includes(token.role as CompanyRole)) {
+        if (typeof token.role === "string" && USER_ROLES.includes(token.role as CompanyRole)) {
           session.user.role = token.role as CompanyRole;
         }
 

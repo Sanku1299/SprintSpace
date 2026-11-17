@@ -2,7 +2,8 @@ import "server-only";
 
 import mongoose, { Schema, type InferSchemaType } from "mongoose";
 
-const USER_ROLES = ["admin", "project_manager", "developer", "designer"] as const;
+export const USER_ROLES = ["admin", "project_manager", "developer", "designer"] as const;
+export type CompanyRole = (typeof USER_ROLES)[number];
 
 const UserSchema = new Schema(
   {
