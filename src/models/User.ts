@@ -47,9 +47,8 @@ const UserSchema = new Schema(
   },
 );
 
-// Keep email non-unique until the account policy decision is finalized.
 UserSchema.index({ workspaceId: 1, role: 1 });
-UserSchema.index({ workspaceId: 1, email: 1 });
+UserSchema.index({ email: 1 }, { unique: true });
 
 export type UserDocument = InferSchemaType<typeof UserSchema>;
 

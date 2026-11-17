@@ -14,7 +14,7 @@ export const User =
 - Every tenant-owned document must have a required `workspaceId` reference. The Workspace document itself is the tenant root and does not reference another workspace.
 - Keep parent references such as `projectId` and `taskId` explicit. Validate that referenced documents belong to the same workspace in the service layer.
 - Use schema validation for data shape and invariants. Authorization and tenant-scoped query filters belong in server-side services, not only in Mongoose hooks or client code.
-- Add indexes for observed query patterns. Tenant-owned collection indexes should include `workspaceId` where appropriate. Do not decide global email uniqueness or other open product rules at the schema layer until those decisions are confirmed.
+- Add indexes for observed query patterns. Tenant-owned collection indexes should include `workspaceId` where appropriate. User email is globally unique, as confirmed for account registration.
 - Store attachment metadata in MongoDB; keep binary contents in object storage.
 
 Model modules must be imported only from server-side code. Define concrete models when their roadmap task begins rather than creating unused schemas ahead of time.
