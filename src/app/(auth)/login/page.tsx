@@ -22,6 +22,12 @@ export default async function LoginPage() {
           Sign in to continue to your workspace.
         </p>
         <LoginForm />
+        <p className="mt-6 text-center text-sm text-slate-600">
+          New to SprintSpace?{" "}
+          <Link href="/register" className="font-semibold text-indigo-700 hover:text-indigo-900">
+            Create a workspace
+          </Link>
+        </p>
       </section>
     </main>
   );
