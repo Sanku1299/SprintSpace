@@ -5,15 +5,13 @@ import { hasCompanyRole } from "@/lib/auth/company-role";
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
 import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { connectToDatabase } from "@/lib/db/mongoose";
+import { TASK_API_FIELDS, toTaskResponse } from "@/lib/tasks/task-api-response";
 import { getAccessibleTaskProject } from "@/lib/tasks/task-project-access";
 import { validateTaskReferences } from "@/lib/tasks/validate-task-references";
 import { createTaskSchema } from "@/lib/validation/task";
 import { Task } from "@/models/Task";
 
 type RouteContext = { params: Promise<{ projectId: string }> };
-
-const TASK_FIELDS =
-  "_id workspaceId projectId title description status priority assigneeId allowedEditorIds dueDate labels parentTaskId position createdBy createdAt updatedAt";
 
 function errorResponse(status: number, code: string, message: string): Response {
   return NextResponse.json(
@@ -34,44 +32,6 @@ function validationResponse(issues: Record<string, string[] | undefined>): Respo
     },
     { status: 400, headers: { "Cache-Control": "no-store" } },
   );
-}
-
-function toTaskResponse(task: {
-  _id: { toString(): string };
-  workspaceId: { toString(): string };
-  projectId: { toString(): string };
-  title: string;
-  description?: string;
-  status: string;
-  priority: string;
-  assigneeId?: { toString(): string } | null;
-  allowedEditorIds: Array<{ toString(): string }>;
-  dueDate?: Date | null;
-  labels: string[];
-  parentTaskId?: { toString(): string } | null;
-  position: number;
-  createdBy: { toString(): string };
-  createdAt: Date;
-  updatedAt: Date;
-}) {
-  return {
-    id: task._id.toString(),
-    workspaceId: task.workspaceId.toString(),
-    projectId: task.projectId.toString(),
-    title: task.title,
-    description: task.description ?? "",
-    status: task.status,
-    priority: task.priority,
-    assigneeId: task.assigneeId?.toString() ?? null,
-    allowedEditorIds: task.allowedEditorIds.map((id) => id.toString()),
-    dueDate: task.dueDate?.toISOString() ?? null,
-    labels: task.labels,
-    parentTaskId: task.parentTaskId?.toString() ?? null,
-    position: task.position,
-    createdBy: task.createdBy.toString(),
-    createdAt: task.createdAt.toISOString(),
-    updatedAt: task.updatedAt.toISOString(),
-  };
 }
 
 export async function GET(_request: Request, { params }: RouteContext): Promise<Response> {
@@ -96,7 +56,7 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
     }
 
     const tasks = await Task.find(workspaceScopedFilter(context, { projectId: access.project._id }))
-      .select(TASK_FIELDS)
+      .select(TASK_API_FIELDS)
       .sort({ position: 1, createdAt: 1, _id: 1 })
       .lean();
 

@@ -5,15 +5,13 @@ import { getEditableTaskFields } from "@/lib/auth/task-edit-policy";
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
 import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { connectToDatabase } from "@/lib/db/mongoose";
+import { TASK_API_FIELDS, toTaskResponse } from "@/lib/tasks/task-api-response";
 import { getAccessibleTaskProject } from "@/lib/tasks/task-project-access";
 import { validateTaskReferences } from "@/lib/tasks/validate-task-references";
 import { updateTaskSchema } from "@/lib/validation/task";
 import { Task } from "@/models/Task";
 
 type RouteContext = { params: Promise<{ taskId: string }> };
-
-const TASK_FIELDS =
-  "_id workspaceId projectId title description status priority assigneeId allowedEditorIds dueDate labels parentTaskId position createdBy createdAt updatedAt";
 
 function errorResponse(status: number, code: string, message: string): Response {
   return NextResponse.json(
@@ -36,44 +34,6 @@ function validationResponse(issues: Record<string, string[] | undefined>): Respo
   );
 }
 
-function toTaskResponse(task: {
-  _id: { toString(): string };
-  workspaceId: { toString(): string };
-  projectId: { toString(): string };
-  title: string;
-  description?: string;
-  status: string;
-  priority: string;
-  assigneeId?: { toString(): string } | null;
-  allowedEditorIds: Array<{ toString(): string }>;
-  dueDate?: Date | null;
-  labels: string[];
-  parentTaskId?: { toString(): string } | null;
-  position: number;
-  createdBy: { toString(): string };
-  createdAt: Date;
-  updatedAt: Date;
-}) {
-  return {
-    id: task._id.toString(),
-    workspaceId: task.workspaceId.toString(),
-    projectId: task.projectId.toString(),
-    title: task.title,
-    description: task.description ?? "",
-    status: task.status,
-    priority: task.priority,
-    assigneeId: task.assigneeId?.toString() ?? null,
-    allowedEditorIds: task.allowedEditorIds.map((id) => id.toString()),
-    dueDate: task.dueDate?.toISOString() ?? null,
-    labels: task.labels,
-    parentTaskId: task.parentTaskId?.toString() ?? null,
-    position: task.position,
-    createdBy: task.createdBy.toString(),
-    createdAt: task.createdAt.toISOString(),
-    updatedAt: task.updatedAt.toISOString(),
-  };
-}
-
 export async function GET(_request: Request, { params }: RouteContext): Promise<Response> {
   try {
     const context = await getWorkspaceContext();
@@ -90,7 +50,7 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
 
     await connectToDatabase();
     const task = await Task.findOne(workspaceScopedFilter(context, { _id: taskId }))
-      .select(TASK_FIELDS)
+      .select(TASK_API_FIELDS)
       .lean();
 
     if (!task) {
@@ -199,7 +159,7 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
       workspaceScopedFilter(context, { _id: taskId, projectId: access.project._id }),
       { $set: parsed.data },
       { new: true, runValidators: true },
-    ).select(TASK_FIELDS);
+    ).select(TASK_API_FIELDS);
 
     if (!updatedTask) {
       return errorResponse(404, "NOT_FOUND", "Task not found.");
