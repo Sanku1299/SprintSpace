@@ -17,6 +17,12 @@ const AttachmentSchema = new Schema(
     originalName: { type: String, required: true, trim: true, maxlength: 255 },
     mimeType: { type: String, required: true, enum: ALLOWED_ATTACHMENT_MIME_TYPES },
     size: { type: Number, required: true, min: 1, max: MAX_ATTACHMENT_SIZE },
+    deletionStatus: {
+      type: String,
+      enum: ["active", "deleting"],
+      default: "active",
+      required: true,
+    },
   },
   { timestamps: true },
 );

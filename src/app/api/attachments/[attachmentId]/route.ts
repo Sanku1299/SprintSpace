@@ -27,23 +27,30 @@ function errorResponse(status: number, code: string, message: string): Response 
 async function loadAuthorizedAttachment(
   attachmentId: string,
   context: NonNullable<Awaited<ReturnType<typeof getWorkspaceContext>>>,
+  includeDeleting = false,
 ) {
-  const attachment = await Attachment.findOne(workspaceScopedFilter(context, { _id: attachmentId }))
+  const filter = workspaceScopedFilter(context, {
+    _id: attachmentId,
+    ...(includeDeleting ? {} : { deletionStatus: { $ne: "deleting" } }),
+  });
+  const attachment = await Attachment.findOne(filter)
     .select(
-      "_id workspaceId projectId taskId uploadedBy storageKey originalName mimeType size createdAt",
+      "_id workspaceId projectId taskId uploadedBy storageKey originalName mimeType size createdAt deletionStatus",
     )
     .lean();
   if (!attachment) return null;
 
-  const task = await Task.findOne(
-    workspaceScopedFilter(context, {
-      _id: attachment.taskId,
-      projectId: attachment.projectId,
-    }),
-  )
-    .select("_id")
-    .lean();
-  if (!task) return null;
+  if (!includeDeleting) {
+    const task = await Task.findOne(
+      workspaceScopedFilter(context, {
+        _id: attachment.taskId,
+        projectId: attachment.projectId,
+      }),
+    )
+      .select("_id")
+      .lean();
+    if (!task) return null;
+  }
 
   const access = await getAccessibleTaskProject(context, attachment.projectId.toString());
   if (!access) return null;
@@ -51,14 +58,14 @@ async function loadAuthorizedAttachment(
     !matchesTaskStorageKey(
       attachment.storageKey,
       context.workspaceId,
-      access.project._id.toString(),
-      task._id.toString(),
+      attachment.projectId.toString(),
+      attachment.taskId.toString(),
     )
   ) {
     return null;
   }
 
-  return { attachment, task, project: access.project };
+  return { attachment, project: access.project };
 }
 
 export async function GET(_request: Request, { params }: RouteContext): Promise<Response> {
@@ -126,7 +133,7 @@ export async function DELETE(_request: Request, { params }: RouteContext): Promi
     }
 
     await connectToDatabase();
-    const result = await loadAuthorizedAttachment(attachmentId, context);
+    const result = await loadAuthorizedAttachment(attachmentId, context, true);
     if (!result) return errorResponse(404, "NOT_FOUND", "Attachment not found.");
 
     const isUploader = result.attachment.uploadedBy.toString() === context.userId;
@@ -138,20 +145,29 @@ export async function DELETE(_request: Request, { params }: RouteContext): Promi
       return errorResponse(403, "FORBIDDEN", "You cannot delete this attachment.");
     }
 
+    // Keep a durable deletion marker until S3 and MongoDB cleanup both finish.
+    // Repeated DELETE requests can safely resume if either operation fails.
+    await Attachment.updateOne(
+      workspaceScopedFilter(context, {
+        _id: result.attachment._id,
+        projectId: result.attachment.projectId,
+        taskId: result.attachment.taskId,
+      }),
+      { $set: { deletionStatus: "deleting" } },
+    );
+
     const { client, config } = getObjectStorageClient();
     await client.send(
       new DeleteObjectCommand({ Bucket: config.bucket, Key: result.attachment.storageKey }),
     );
-    const deletion = await Attachment.deleteOne(
+    await Attachment.deleteOne(
       workspaceScopedFilter(context, {
         _id: result.attachment._id,
         projectId: result.attachment.projectId,
-        taskId: result.task._id,
+        taskId: result.attachment.taskId,
       }),
     );
-    if (deletion.deletedCount !== 1) {
-      return errorResponse(404, "NOT_FOUND", "Attachment not found.");
-    }
+    // A concurrent DELETE may have completed the same idempotent cleanup.
 
     return NextResponse.json(
       { success: true, data: { deletedAttachmentId: attachmentId } },
