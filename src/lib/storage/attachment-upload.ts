@@ -27,6 +27,19 @@ export const createPresignedUploadSchema = z
   })
   .strict();
 
+export const registerAttachmentSchema = z
+  .object({
+    taskId: z
+      .string()
+      .regex(/^[a-f\d]{24}$/i)
+      .transform((value) => value.toLowerCase()),
+    storageKey: z.string().trim().min(1).max(1024),
+    originalName: z.string().trim().min(1).max(255),
+    contentType: z.enum(ALLOWED_ATTACHMENT_MIME_TYPES),
+    size: z.number().int().min(1).max(MAX_ATTACHMENT_SIZE),
+  })
+  .strict();
+
 export function normalizeOriginalFileName(fileName: string): string {
   return fileName
     .replace(/[\\/\u0000-\u001f\u007f]/g, "_")
