@@ -5,6 +5,10 @@ import { getEditableTaskFields } from "@/lib/auth/task-edit-policy";
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
 import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { connectToDatabase } from "@/lib/db/mongoose";
+import {
+  createTaskNotification,
+  createTaskStatusNotifications,
+} from "@/lib/notifications/generate";
 import { TASK_API_FIELDS, toTaskResponse } from "@/lib/tasks/task-api-response";
 import { recordTaskActivity, taskActivityChanges } from "@/lib/tasks/task-activity";
 import { getAccessibleTaskProject } from "@/lib/tasks/task-project-access";
@@ -181,6 +185,32 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
             ? "task_status_changed"
             : "task_updated",
         changes,
+      });
+    }
+
+    if (
+      parsed.data.assigneeId !== undefined &&
+      parsed.data.assigneeId &&
+      parsed.data.assigneeId.toLowerCase() !== currentTask.assigneeId?.toString().toLowerCase()
+    ) {
+      await createTaskNotification({
+        context,
+        recipientId: parsed.data.assigneeId,
+        projectId: access.project._id,
+        taskId: task._id,
+        type: "task_assigned",
+        message: `You were assigned to “${task.title}”.`,
+      });
+    }
+    if (changes.some((change) => change.field === "status")) {
+      await createTaskStatusNotifications({
+        context,
+        projectId: access.project._id,
+        taskId: task._id,
+        taskTitle: task.title,
+        previousStatus: String(currentTask.status),
+        nextStatus: String(parsed.data.status),
+        assigneeId: updatedTask.assigneeId,
       });
     }
 

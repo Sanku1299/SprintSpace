@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
 import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { connectToDatabase } from "@/lib/db/mongoose";
+import { createTaskNotification } from "@/lib/notifications/generate";
 import { getAccessibleTaskProject } from "@/lib/tasks/task-project-access";
 import { recordTaskActivity } from "@/lib/tasks/task-activity";
 import { toTaskCommentResponse } from "@/lib/tasks/task-comment-response";
@@ -149,6 +150,18 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
       type: "comment_created",
       changes: [{ field: "commentId", from: null, to: comment._id }],
     });
+    await Promise.all(
+      parsed.data.mentionIds.map((recipientId) =>
+        createTaskNotification({
+          context,
+          recipientId,
+          projectId: result.access.project._id,
+          taskId: result.task._id,
+          type: "comment_mention",
+          message: `You were mentioned in a comment on “${result.task.title}”.`,
+        }),
+      ),
+    );
     const profileIds = [context.userId, ...parsed.data.mentionIds];
     const profiles = await User.find(workspaceScopedFilter(context, { _id: { $in: profileIds } }))
       .select("_id name avatarUrl")
