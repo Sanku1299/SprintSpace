@@ -17,6 +17,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1171.0",
     "@dnd-kit/abstract": "^0.5.3",
     "@dnd-kit/react": "^0.5.3",
+    "@vercel/functions": "^3.11.3",
     "mongoose": "^9.12.2",
     "next": "16.4.6",
     "next-auth": "^5.0.0-beta.32",

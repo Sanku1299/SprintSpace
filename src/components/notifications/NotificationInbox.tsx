@@ -43,6 +43,46 @@ export function NotificationInbox() {
     };
   }, [fetchNotifications]);
 
+  useEffect(() => {
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let socket: WebSocket | undefined;
+    let delay = 1000;
+    const connect = () => {
+      if (disposed) return;
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      socket = new WebSocket(`${protocol}//${window.location.host}/api/notifications/events`);
+      socket.onopen = () => {
+        delay = 1000;
+      };
+      socket.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data as string) as { type?: string };
+          if (payload.type === "notification.created") {
+            void fetchNotifications().then((data) => {
+              setItems(data.notifications);
+              setUnread(data.unreadCount);
+            });
+          }
+        } catch {
+          // Ignore malformed event frames.
+        }
+      };
+      socket.onclose = () => {
+        if (disposed) return;
+        timer = setTimeout(connect, delay);
+        delay = Math.min(delay * 2, 30000);
+      };
+      socket.onerror = () => socket?.close();
+    };
+    connect();
+    return () => {
+      disposed = true;
+      if (timer) clearTimeout(timer);
+      socket?.close();
+    };
+  }, [fetchNotifications]);
+
   async function markAllRead() {
     const response = await fetch("/api/notifications", {
       method: "PATCH",
