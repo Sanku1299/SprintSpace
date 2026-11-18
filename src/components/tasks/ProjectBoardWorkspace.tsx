@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { CollisionPriority } from "@dnd-kit/abstract";
+import { DragDropProvider, useDroppable, type DragEndEvent } from "@dnd-kit/react";
+import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 
 import { TASK_STATUSES } from "@/lib/tasks/task-constants";
 
@@ -17,6 +21,7 @@ type TaskItem = {
   labels: string[];
 };
 type Member = { id: string; name: string; avatarUrl: string | null };
+type TaskStatus = (typeof TASK_STATUSES)[number];
 
 const STATUS_LABELS: Record<string, string> = {
   todo: "To do",
@@ -61,6 +66,49 @@ function initials(name: string): string {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
+}
+
+function isTaskStatus(value: unknown): value is TaskStatus {
+  return typeof value === "string" && (TASK_STATUSES as readonly string[]).includes(value);
+}
+
+function handleDragEnd(
+  event: DragEndEvent,
+  setTasks: (update: (current: TaskItem[]) => TaskItem[]) => void,
+) {
+  if (event.canceled || !isSortable(event.operation.source)) return;
+
+  const { source, target } = event.operation;
+  const fromStatus = isTaskStatus(source.initialGroup) ? source.initialGroup : null;
+  const emptyColumnStatus =
+    typeof target?.id === "string" && target.id.startsWith("column:")
+      ? target.id.slice("column:".length)
+      : null;
+  const toStatus = isTaskStatus(emptyColumnStatus)
+    ? emptyColumnStatus
+    : isTaskStatus(source.group)
+      ? source.group
+      : null;
+
+  if (!fromStatus || !toStatus) return;
+
+  setTasks((current) => {
+    const groups = Object.fromEntries(
+      TASK_STATUSES.map((status) => [status, current.filter((task) => task.status === status)]),
+    ) as Record<TaskStatus, TaskItem[]>;
+    const sourceTasks = groups[fromStatus];
+    const movedIndex = sourceTasks.findIndex((task) => task.id === String(source.id));
+
+    if (movedIndex < 0) return current;
+
+    const [movedTask] = sourceTasks.splice(movedIndex, 1);
+    const destinationTasks = groups[toStatus];
+    const requestedIndex = emptyColumnStatus ? destinationTasks.length : source.index;
+    const destinationIndex = Math.max(0, Math.min(requestedIndex, destinationTasks.length));
+    destinationTasks.splice(destinationIndex, 0, { ...movedTask, status: toStatus });
+
+    return TASK_STATUSES.flatMap((status) => groups[status]);
+  });
 }
 
 export function ProjectBoardWorkspace({ projectId }: { projectId: string }) {
@@ -148,115 +196,169 @@ export function ProjectBoardWorkspace({ projectId }: { projectId: string }) {
         </p>
       ) : null}
 
-      <div className="mt-8 flex gap-4 overflow-x-auto pb-3">
-        {TASK_STATUSES.map((status) => {
-          const statusTasks = tasks.filter((task) => task.status === status);
+      <DragDropProvider onDragEnd={(event) => handleDragEnd(event, setTasks)}>
+        <div className="mt-8 flex gap-4 overflow-x-auto pb-3">
+          {TASK_STATUSES.map((status) => {
+            const statusTasks = tasks.filter((task) => task.status === status);
 
-          return (
-            <section
-              key={status}
-              aria-labelledby={`board-column-${status}`}
-              className="min-h-80 w-72 shrink-0 rounded-2xl border border-slate-200 bg-slate-100/70 p-3 xl:w-auto xl:flex-1"
-            >
-              <div className="flex items-center justify-between px-1 pb-3">
-                <h2
-                  id={`board-column-${status}`}
-                  className="flex items-center gap-2 text-sm font-semibold text-slate-800"
-                >
-                  <span className={`size-2.5 rounded-full ${STATUS_ACCENTS[status]}`} />
-                  {STATUS_LABELS[status]}
-                </h2>
-                <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-500">
-                  {loading ? "—" : statusTasks.length}
-                </span>
-              </div>
-
-              <div className="space-y-2">
-                {statusTasks.map((task) => (
+            return (
+              <BoardColumn
+                key={status}
+                status={status}
+                count={statusTasks.length}
+                loading={loading}
+              >
+                {statusTasks.map((task, index) => (
                   <TaskCard
                     key={task.id}
                     task={task}
+                    index={index}
                     assignee={membersById.get(task.assigneeId ?? "")}
                   />
                 ))}
-                {!loading && statusTasks.length === 0 ? (
-                  <p className="rounded-xl border border-dashed border-slate-300 px-3 py-6 text-center text-xs text-slate-400">
-                    No tasks in this status
-                  </p>
-                ) : null}
-                {loading ? <div className="h-20 animate-pulse rounded-xl bg-white/80" /> : null}
-              </div>
-            </section>
-          );
-        })}
-      </div>
+              </BoardColumn>
+            );
+          })}
+        </div>
+      </DragDropProvider>
     </main>
   );
 }
 
-function TaskCard({ task, assignee }: { task: TaskItem; assignee?: Member }) {
+function BoardColumn({
+  status,
+  count,
+  loading,
+  children,
+}: {
+  status: TaskStatus;
+  count: number;
+  loading: boolean;
+  children: ReactNode;
+}) {
+  const { isDropTarget, ref } = useDroppable({
+    id: `column:${status}`,
+    accept: "task",
+    collisionPriority: CollisionPriority.Low,
+  });
+
+  return (
+    <section
+      ref={ref}
+      aria-labelledby={`board-column-${status}`}
+      className={`min-h-80 w-72 shrink-0 rounded-2xl border p-3 transition-colors xl:w-auto xl:flex-1 ${isDropTarget ? "border-indigo-300 bg-indigo-50" : "border-slate-200 bg-slate-100/70"}`}
+    >
+      <div className="flex items-center justify-between px-1 pb-3">
+        <h2
+          id={`board-column-${status}`}
+          className="flex items-center gap-2 text-sm font-semibold text-slate-800"
+        >
+          <span className={`size-2.5 rounded-full ${STATUS_ACCENTS[status]}`} />
+          {STATUS_LABELS[status]}
+        </h2>
+        <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-500">
+          {loading ? "—" : count}
+        </span>
+      </div>
+
+      <div className="min-h-64 space-y-2">
+        {children}
+        {!loading && count === 0 ? (
+          <p className="rounded-xl border border-dashed border-slate-300 px-3 py-6 text-center text-xs text-slate-400">
+            Drop tasks here
+          </p>
+        ) : null}
+        {loading ? <div className="h-20 animate-pulse rounded-xl bg-white/80" /> : null}
+      </div>
+    </section>
+  );
+}
+
+function TaskCard({ task, index, assignee }: { task: TaskItem; index: number; assignee?: Member }) {
+  const { ref, handleRef, isDragging } = useSortable({
+    id: task.id,
+    index,
+    group: task.status,
+    type: "task",
+    accept: "task",
+  });
   const overdue = isOverdue(task);
 
   return (
-    <Link
-      href={`/tasks/${task.id}`}
-      className="block rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+    <article
+      ref={ref}
+      className={`rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm transition hover:border-indigo-200 hover:shadow-md ${isDragging ? "opacity-50" : ""}`}
     >
-      <span className="flex items-start justify-between gap-2">
-        <span className="text-sm font-semibold leading-5 text-slate-900">{task.title}</span>
-        <span
-          className={`shrink-0 rounded-md px-1.5 py-1 text-[10px] font-bold uppercase tracking-wide ${PRIORITY_STYLES[task.priority] ?? PRIORITY_STYLES.medium}`}
-        >
-          {task.priority}
-        </span>
-      </span>
-      {task.description ? (
-        <span className="mt-2 line-clamp-2 block text-xs leading-5 text-slate-500">
-          {task.description}
-        </span>
-      ) : null}
-      {task.labels.length ? (
-        <span className="mt-3 flex flex-wrap gap-1.5">
-          {task.labels.slice(0, 2).map((label) => (
+      <div className="flex items-start gap-2">
+        <Link href={`/tasks/${task.id}`} className="min-w-0 flex-1">
+          <span className="flex items-start justify-between gap-2">
+            <span className="text-sm font-semibold leading-5 text-slate-900">{task.title}</span>
             <span
-              key={label}
-              className="max-w-full truncate rounded-md bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-600"
+              className={`shrink-0 rounded-md px-1.5 py-1 text-[10px] font-bold uppercase tracking-wide ${PRIORITY_STYLES[task.priority] ?? PRIORITY_STYLES.medium}`}
             >
-              {label}
+              {task.priority}
             </span>
-          ))}
-          {task.labels.length > 2 ? (
-            <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-500">
-              +{task.labels.length - 2}
-            </span>
-          ) : null}
-        </span>
-      ) : null}
-      <span className="mt-4 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
-        <span className="flex min-w-0 items-center gap-2">
-          {assignee ? (
-            <>
-              <span className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-800">
-                {assignee.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={assignee.avatarUrl} alt="" className="size-full object-cover" />
-                ) : (
-                  initials(assignee.name)
-                )}
-              </span>
-              <span className="truncate text-xs font-medium text-slate-600">{assignee.name}</span>
-            </>
-          ) : (
-            <span className="text-xs text-slate-400">Unassigned</span>
-          )}
-        </span>
-        <span
-          className={`shrink-0 text-xs ${overdue ? "font-semibold text-rose-700" : "text-slate-500"}`}
+          </span>
+        </Link>
+        <button
+          ref={handleRef}
+          type="button"
+          aria-label={`Drag ${task.title}`}
+          title="Drag to move task"
+          className="-mr-1 -mt-1 flex size-7 shrink-0 cursor-grab items-center justify-center rounded-md text-lg leading-none text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:cursor-grabbing"
         >
-          {overdue ? "Overdue · " : ""}
-          {dueDateLabel(task.dueDate)}
+          <span aria-hidden="true">⠿</span>
+        </button>
+      </div>
+      <Link href={`/tasks/${task.id}`} className="block">
+        {task.description ? (
+          <span className="mt-2 line-clamp-2 block text-xs leading-5 text-slate-500">
+            {task.description}
+          </span>
+        ) : null}
+        {task.labels.length ? (
+          <span className="mt-3 flex flex-wrap gap-1.5">
+            {task.labels.slice(0, 2).map((label) => (
+              <span
+                key={label}
+                className="max-w-full truncate rounded-md bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-600"
+              >
+                {label}
+              </span>
+            ))}
+            {task.labels.length > 2 ? (
+              <span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-500">
+                +{task.labels.length - 2}
+              </span>
+            ) : null}
+          </span>
+        ) : null}
+        <span className="mt-4 flex items-center justify-between gap-2 border-t border-slate-100 pt-3">
+          <span className="flex min-w-0 items-center gap-2">
+            {assignee ? (
+              <>
+                <span className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-800">
+                  {assignee.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={assignee.avatarUrl} alt="" className="size-full object-cover" />
+                  ) : (
+                    initials(assignee.name)
+                  )}
+                </span>
+                <span className="truncate text-xs font-medium text-slate-600">{assignee.name}</span>
+              </>
+            ) : (
+              <span className="text-xs text-slate-400">Unassigned</span>
+            )}
+          </span>
+          <span
+            className={`shrink-0 text-xs ${overdue ? "font-semibold text-rose-700" : "text-slate-500"}`}
+          >
+            {overdue ? "Overdue · " : ""}
+            {dueDateLabel(task.dueDate)}
+          </span>
         </span>
-      </span>
-    </Link>
+      </Link>
+    </article>
   );
 }
