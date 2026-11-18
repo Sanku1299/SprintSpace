@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
 import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
+import { getEditableTaskFields } from "@/lib/auth/task-edit-policy";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import {
   normalizeOriginalFileName,
@@ -54,12 +55,26 @@ export async function POST(request: Request): Promise<Response> {
     const task = await Task.findOne(
       workspaceScopedFilter(context, { _id: parsed.data.taskId.toLowerCase() }),
     )
-      .select("_id projectId")
+      .select("_id workspaceId projectId assigneeId allowedEditorIds")
       .lean();
     if (!task) return errorResponse(404, "NOT_FOUND", "Task not found.");
 
     const access = await getAccessibleTaskProject(context, task.projectId.toString());
     if (!access) return errorResponse(404, "NOT_FOUND", "Task not found.");
+
+    const editableFields = getEditableTaskFields({
+      context,
+      task,
+      project: {
+        id: access.project._id,
+        workspaceId: access.project.workspaceId,
+        projectManagerId: access.project.projectManagerId,
+      },
+      isProjectMember: access.isProjectMember,
+    });
+    if (!editableFields.includes("title")) {
+      return errorResponse(403, "FORBIDDEN", "You cannot upload attachments to this task.");
+    }
 
     const originalName = normalizeOriginalFileName(parsed.data.fileName);
     if (!originalName) {
@@ -79,7 +94,10 @@ export async function POST(request: Request): Promise<Response> {
       Key: storageKey,
       Expires: UPLOAD_URL_TTL_SECONDS,
       Fields: { "Content-Type": parsed.data.contentType },
-      Conditions: [["content-length-range", parsed.data.size, parsed.data.size]],
+      Conditions: [
+        ["eq", "$Content-Type", parsed.data.contentType],
+        ["content-length-range", parsed.data.size, parsed.data.size],
+      ],
     });
 
     return NextResponse.json(
