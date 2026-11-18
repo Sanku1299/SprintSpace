@@ -189,8 +189,9 @@ describe("/api/projects/:projectId/members", () => {
       status: "active",
       workspaceId,
     });
-    expect(document).toMatchObject({ workspaceId, userId: memberId, addedBy: adminId });
+    expect(document).toMatchObject({ workspaceId, addedBy: adminId });
     expect(String(document?.projectId)).toBe(projectId);
+    expect(String(document?.userId)).toBe(memberId);
     expect(body.data.member.id).toBe(memberId);
   });
 
