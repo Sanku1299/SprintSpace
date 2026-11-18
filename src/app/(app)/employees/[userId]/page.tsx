@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import mongoose from "mongoose";
 
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
+import { hasCompanyRole } from "@/lib/auth/company-role";
 import { getWorkspaceMember } from "@/lib/members/workspace-members";
 import { MemberRoleEditor } from "@/components/members/MemberRoleEditor";
 import type { CompanyRole } from "@/models/User";
@@ -38,7 +39,7 @@ export default async function EmployeeDetailsPage({
     redirect("/login");
   }
 
-  if (context.role !== "admin") {
+  if (!hasCompanyRole(context, "admin")) {
     redirect("/dashboard");
   }
 

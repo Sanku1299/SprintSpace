@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
+import { hasCompanyRole } from "@/lib/auth/company-role";
 import { listWorkspaceMembers } from "@/lib/members/workspace-members";
 import type { CompanyRole } from "@/models/User";
 
@@ -28,7 +29,7 @@ export default async function EmployeesPage() {
     redirect("/login");
   }
 
-  if (context.role !== "admin") {
+  if (!hasCompanyRole(context, "admin")) {
     redirect("/dashboard");
   }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
+import { hasCompanyRole } from "@/lib/auth/company-role";
 import { listWorkspaceMembers } from "@/lib/members/workspace-members";
 
 function errorResponse(status: number, code: string, message: string): Response {
@@ -18,7 +19,7 @@ export async function GET(): Promise<Response> {
       return errorResponse(401, "UNAUTHENTICATED", "Sign in to continue.");
     }
 
-    if (context.role !== "admin") {
+    if (!hasCompanyRole(context, "admin")) {
       return errorResponse(403, "FORBIDDEN", "You cannot perform this action.");
     }
 

@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { NextResponse } from "next/server";
 
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
+import { hasCompanyRole } from "@/lib/auth/company-role";
 import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { getWorkspaceMember } from "@/lib/members/workspace-members";
 import { updateMemberRoleSchema } from "@/lib/validation/member";
@@ -24,7 +25,7 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
       return errorResponse(401, "UNAUTHENTICATED", "Sign in to continue.");
     }
 
-    if (context.role !== "admin") {
+    if (!hasCompanyRole(context, "admin")) {
       return errorResponse(403, "FORBIDDEN", "You cannot perform this action.");
     }
 
@@ -75,7 +76,7 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
       return errorResponse(401, "UNAUTHENTICATED", "Sign in to continue.");
     }
 
-    if (context.role !== "admin") {
+    if (!hasCompanyRole(context, "admin")) {
       return errorResponse(403, "FORBIDDEN", "You cannot perform this action.");
     }
 

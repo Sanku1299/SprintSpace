@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { createInvitationToken, INVITATION_TTL_MS } from "@/lib/auth/invitation-token";
 import { isDuplicatePendingInvitationError } from "@/lib/auth/invitation-errors";
+import { hasCompanyRole } from "@/lib/auth/company-role";
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
 import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { connectToDatabase } from "@/lib/db/mongoose";
@@ -29,7 +30,7 @@ export async function POST(_request: Request, { params }: RouteContext): Promise
       return errorResponse(401, "UNAUTHENTICATED", "Sign in to continue.");
     }
 
-    if (context.role !== "admin") {
+    if (!hasCompanyRole(context, "admin")) {
       return errorResponse(403, "FORBIDDEN", "You cannot perform this action.");
     }
 

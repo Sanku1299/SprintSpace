@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
+import { hasCompanyRole } from "@/lib/auth/company-role";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { workspaceUpdateSchema } from "@/lib/validation/workspace";
 import { Workspace } from "@/models/Workspace";
@@ -69,7 +70,7 @@ export async function GET(): Promise<Response> {
       return unauthorizedResponse();
     }
 
-    if (context.role !== "admin") {
+    if (!hasCompanyRole(context, "admin")) {
       return forbiddenResponse();
     }
 
@@ -123,7 +124,7 @@ export async function PATCH(request: Request): Promise<Response> {
       return unauthorizedResponse();
     }
 
-    if (context.role !== "admin") {
+    if (!hasCompanyRole(context, "admin")) {
       return forbiddenResponse();
     }
 

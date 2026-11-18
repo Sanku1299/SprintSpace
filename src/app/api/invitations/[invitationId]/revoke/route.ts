@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { NextResponse } from "next/server";
 
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
+import { hasCompanyRole } from "@/lib/auth/company-role";
 import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { Invitation } from "@/models/Invitation";
@@ -26,7 +27,7 @@ export async function POST(_request: Request, { params }: RouteContext): Promise
       return errorResponse(401, "UNAUTHENTICATED", "Sign in to continue.");
     }
 
-    if (context.role !== "admin") {
+    if (!hasCompanyRole(context, "admin")) {
       return errorResponse(403, "FORBIDDEN", "You cannot perform this action.");
     }
 
