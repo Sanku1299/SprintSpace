@@ -7,6 +7,7 @@ import { getEditableTaskFields } from "@/lib/auth/task-edit-policy";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { toAttachmentResponse } from "@/lib/storage/attachment-response";
 import {
+  matchesTaskStorageKey,
   normalizeOriginalFileName,
   registerAttachmentSchema,
 } from "@/lib/storage/attachment-upload";
@@ -26,17 +27,6 @@ function errorResponse(status: number, code: string, message: string): Response 
 
 function isDuplicateKeyError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === 11000;
-}
-
-function matchesTaskStorageKey(
-  storageKey: string,
-  workspaceId: string,
-  projectId: string,
-  taskId: string,
-): boolean {
-  const prefix = `${workspaceId.toLowerCase()}/${projectId.toLowerCase()}/tasks/${taskId.toLowerCase()}/`;
-  const suffix = storageKey.startsWith(prefix) ? storageKey.slice(prefix.length) : "";
-  return /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i.test(suffix);
 }
 
 function canRegisterAttachment(

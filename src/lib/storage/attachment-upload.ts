@@ -4,6 +4,7 @@ import { z } from "zod";
 
 export const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
 export const UPLOAD_URL_TTL_SECONDS = 5 * 60;
+export const DOWNLOAD_URL_TTL_SECONDS = 5 * 60;
 
 export const ALLOWED_ATTACHMENT_MIME_TYPES = [
   "application/pdf",
@@ -45,4 +46,15 @@ export function normalizeOriginalFileName(fileName: string): string {
     .replace(/[\\/\u0000-\u001f\u007f]/g, "_")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+export function matchesTaskStorageKey(
+  storageKey: string,
+  workspaceId: string,
+  projectId: string,
+  taskId: string,
+): boolean {
+  const prefix = `${workspaceId.toLowerCase()}/${projectId.toLowerCase()}/tasks/${taskId.toLowerCase()}/`;
+  const suffix = storageKey.startsWith(prefix) ? storageKey.slice(prefix.length) : "";
+  return /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i.test(suffix);
 }

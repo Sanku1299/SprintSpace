@@ -10,8 +10,8 @@ the server environment, such as `.env.local`; never prefix them with
 - For another S3-compatible service, set its HTTPS endpoint and both access
   credentials. The adapter defaults to path-style requests when an endpoint is
   configured; `OBJECT_STORAGE_FORCE_PATH_STYLE` can override that behavior.
-- Keep the bucket private. Configure bucket CORS to allow `POST` from the
-  application origin, with the request headers required by the provider's
+- Keep the bucket private. Configure bucket CORS to allow `POST` and `GET` from
+  the application origin, with the request headers required by the provider's
   presigned form.
 
 The upload endpoint creates short-lived, task-scoped presigned POST forms. It
