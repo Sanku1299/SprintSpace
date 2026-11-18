@@ -119,6 +119,22 @@ export async function GET(request: Request, { params }: RouteContext): Promise<R
         },
       ];
     });
+    const mentionableIds = [...memberships.map(({ userId }) => userId), project.projectManagerId];
+    const mentionableUsers = await User.find(
+      workspaceScopedFilter(context, {
+        status: "active",
+        $or: [{ _id: { $in: mentionableIds } }, { role: "admin" }],
+      }),
+    )
+      .select("_id name role avatarUrl")
+      .sort({ name: 1, _id: 1 })
+      .lean();
+    const mentionableMembers = mentionableUsers.map((user) => ({
+      id: user._id.toString(),
+      name: user.name,
+      role: user.role,
+      avatarUrl: user.avatarUrl ?? null,
+    }));
 
     const url = new URL(request.url);
     const includeAvailable = url.searchParams.get("available") === "true";
@@ -144,6 +160,8 @@ export async function GET(request: Request, { params }: RouteContext): Promise<R
           success: true,
           data: {
             members,
+            mentionableMembers,
+            projectManagerId: project.projectManagerId.toString(),
             availableMembers: availableUsers.map((user) => ({
               id: user._id.toString(),
               name: user.name,
@@ -159,7 +177,14 @@ export async function GET(request: Request, { params }: RouteContext): Promise<R
     }
 
     return NextResponse.json(
-      { success: true, data: { members } },
+      {
+        success: true,
+        data: {
+          members,
+          mentionableMembers,
+          projectManagerId: project.projectManagerId.toString(),
+        },
+      },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch {

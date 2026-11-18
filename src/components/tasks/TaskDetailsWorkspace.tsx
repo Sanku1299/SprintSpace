@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
 import { TASK_PRIORITIES, TASK_STATUSES } from "@/lib/tasks/task-constants";
+import { TaskCollaboration } from "@/components/tasks/TaskCollaboration";
 import type { CompanyRole } from "@/models/User";
 
 type TaskItem = {
@@ -21,6 +22,7 @@ type TaskItem = {
   createdAt: string;
 };
 type Member = { id: string; name: string; email: string; role: string; status: string };
+type MentionMember = { id: string; name: string; role: string; avatarUrl: string | null };
 type Subtask = {
   id: string;
   title: string;
@@ -69,6 +71,9 @@ export function TaskDetailsWorkspace({
       : "mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-11";
   const [task, setTask] = useState<TaskItem | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
+  const [mentionableMembers, setMentionableMembers] = useState<MentionMember[]>([]);
+  const [projectManagerId, setProjectManagerId] = useState("");
+  const [collaborationRefresh, setCollaborationRefresh] = useState(0);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -122,6 +127,8 @@ export function TaskDetailsWorkspace({
         setMembers(
           (memberPayload.data.members as Member[]).filter((member) => member.status === "active"),
         );
+        setMentionableMembers(memberPayload.data.mentionableMembers as MentionMember[]);
+        setProjectManagerId(memberPayload.data.projectManagerId as string);
         setSubtasks(subtaskPayload.data.subtasks as Subtask[]);
       } catch (reason) {
         if (active) setError(reason instanceof Error ? reason.message : "Could not load task.");
@@ -193,6 +200,7 @@ export function TaskDetailsWorkspace({
       setAllowedEditorIds(updated.allowedEditorIds);
       setDueDate(updated.dueDate?.slice(0, 10) ?? "");
       setLabels(updated.labels.join(", "));
+      setCollaborationRefresh((revision) => revision + 1);
       setNotice("Task saved.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not save task.");
@@ -553,6 +561,14 @@ export function TaskDetailsWorkspace({
                 </form>
               ) : null}
             </section>
+            <TaskCollaboration
+              taskId={taskId}
+              userId={userId}
+              role={role}
+              projectManagerId={projectManagerId}
+              members={mentionableMembers}
+              refreshKey={collaborationRefresh}
+            />
           </div>
 
           <aside className="space-y-4">
