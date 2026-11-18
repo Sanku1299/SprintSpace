@@ -17,36 +17,32 @@ function error(status: number, code: string, message: string) {
   );
 }
 
+async function getProjectAccessFilter(
+  context: NonNullable<Awaited<ReturnType<typeof getWorkspaceContext>>>,
+) {
+  if (hasCompanyRole(context, "admin")) return {};
+  const projectIds = await ProjectMember.find(
+    workspaceScopedFilter(context, { userId: context.userId }),
+  )
+    .distinct("projectId")
+    .exec();
+  const accessibleProjectIds = [...projectIds];
+  if (hasCompanyRole(context, "project_manager")) {
+    accessibleProjectIds.push(
+      ...(await Project.find(workspaceScopedFilter(context, { projectManagerId: context.userId }))
+        .distinct("_id")
+        .exec()),
+    );
+  }
+  return { projectId: { $in: accessibleProjectIds } };
+}
+
 export async function GET(): Promise<Response> {
   try {
     const context = await getWorkspaceContext();
     if (!context) return error(401, "UNAUTHENTICATED", "Sign in to continue.");
     await connectToDatabase();
-    const projectIds = hasCompanyRole(context, "admin")
-      ? null
-      : await ProjectMember.find(workspaceScopedFilter(context, { userId: context.userId }))
-          .distinct("projectId")
-          .exec();
-    const accessFilter = projectIds
-      ? {
-          $or: [
-            { projectId: { $in: projectIds } },
-            ...(hasCompanyRole(context, "project_manager")
-              ? [
-                  {
-                    projectId: {
-                      $in: await Project.find(
-                        workspaceScopedFilter(context, { projectManagerId: context.userId }),
-                      )
-                        .distinct("_id")
-                        .exec(),
-                    },
-                  },
-                ]
-              : []),
-          ],
-        }
-      : {};
+    const accessFilter = await getProjectAccessFilter(context);
     const notifications = await Notification.find(
       workspaceScopedFilter(context, { recipientId: context.userId, ...accessFilter }),
     )
@@ -80,7 +76,12 @@ export async function PATCH(request: Request): Promise<Response> {
     if (!context) return error(401, "UNAUTHENTICATED", "Sign in to continue.");
     const body = (await request.json()) as { notificationId?: unknown; markAllRead?: unknown };
     await connectToDatabase();
-    const filter = workspaceScopedFilter(context, { recipientId: context.userId, readAt: null });
+    const accessFilter = await getProjectAccessFilter(context);
+    const filter = workspaceScopedFilter(context, {
+      recipientId: context.userId,
+      readAt: null,
+      ...accessFilter,
+    });
     if (body.markAllRead === true) {
       await Notification.updateMany(filter, { $set: { readAt: new Date() } });
       return NextResponse.json({ success: true }, { headers: { "Cache-Control": "no-store" } });
