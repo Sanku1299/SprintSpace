@@ -24,14 +24,16 @@ export async function GET(): Promise<Response> {
         { status: 403 },
       );
     await connectToDatabase();
-    const projects = await Project.find(
-      workspaceScopedFilter(context, { projectManagerId: context.userId }),
-    )
-      .select("_id name key status priority endDate")
-      .sort({ updatedAt: -1 })
-      .limit(100)
-      .lean();
-    const projectIds = projects.map((project) => project._id);
+    const projectScope = workspaceScopedFilter(context, { projectManagerId: context.userId });
+    const [projects, projectIds, projectCount] = await Promise.all([
+      Project.find(projectScope)
+        .select("_id name key status priority endDate")
+        .sort({ updatedAt: -1 })
+        .limit(100)
+        .lean(),
+      Project.distinct("_id", projectScope),
+      Project.countDocuments(projectScope),
+    ]);
     const taskScope = workspaceScopedFilter(context, { projectId: { $in: projectIds } });
     const [taskCount, byStatus, overdue] = await Promise.all([
       Task.countDocuments(taskScope),
@@ -54,7 +56,7 @@ export async function GET(): Promise<Response> {
             priority: project.priority,
             endDate: project.endDate,
           })),
-          projectCount: projects.length,
+          projectCount,
           taskCount,
           overdueTasks: overdue,
           tasksByStatus: byStatus.map((row: { _id: string; count: number }) => ({

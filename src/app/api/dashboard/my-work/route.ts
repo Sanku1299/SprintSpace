@@ -31,34 +31,29 @@ export async function GET(): Promise<Response> {
       .distinct("projectId")
       .exec();
     const projectFilter = workspaceScopedFilter(context, { _id: { $in: projectIds } });
-    const [projects, tasks, byStatus] = await Promise.all([
+    const taskScope = workspaceScopedFilter(context, {
+      projectId: { $in: projectIds },
+      assigneeId: context.userId,
+    });
+    const [projects, tasks, taskCount, overdueTasks, byStatus] = await Promise.all([
       Project.find(projectFilter)
         .select("_id name key status")
         .sort({ updatedAt: -1 })
         .limit(100)
         .lean(),
-      Task.find(
-        workspaceScopedFilter(context, {
-          projectId: { $in: projectIds },
-          assigneeId: context.userId,
-        }),
-      )
+      Task.find(taskScope)
         .select("_id projectId title status priority dueDate updatedAt")
         .sort({ dueDate: 1, updatedAt: -1 })
         .limit(100)
         .lean(),
+      Task.countDocuments(taskScope),
+      Task.countDocuments({ ...taskScope, dueDate: { $lt: new Date() }, status: { $ne: "done" } }),
       Task.aggregate([
-        {
-          $match: workspaceScopedFilter(context, {
-            projectId: { $in: projectIds },
-            assigneeId: context.userId,
-          }),
-        },
+        { $match: taskScope },
         { $group: { _id: "$status", count: { $sum: 1 } } },
         { $sort: { _id: 1 } },
       ]),
     ]);
-    const now = new Date();
     return NextResponse.json(
       {
         success: true,
@@ -77,10 +72,8 @@ export async function GET(): Promise<Response> {
             priority: task.priority,
             dueDate: task.dueDate?.toISOString() ?? null,
           })),
-          taskCount: tasks.length,
-          overdueTasks: tasks.filter(
-            (task) => task.dueDate && task.dueDate < now && task.status !== "done",
-          ).length,
+          taskCount,
+          overdueTasks,
           tasksByStatus: byStatus.map((row: { _id: string; count: number }) => ({
             status: row._id,
             count: row.count,
