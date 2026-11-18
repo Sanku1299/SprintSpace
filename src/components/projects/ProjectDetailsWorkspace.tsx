@@ -401,6 +401,12 @@ export function ProjectDetailsWorkspace({
               </div>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link
+                  href={`/projects/${project.id}/board`}
+                  className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-800 transition hover:bg-indigo-100"
+                >
+                  Open workflow board
+                </Link>
+                <Link
                   href={`/tasks?projectId=${project.id}`}
                   className="rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-800"
                 >
