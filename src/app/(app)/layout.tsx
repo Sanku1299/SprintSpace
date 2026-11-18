@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { SignOutButton } from "@/components/auth/SignOutButton";
+import { NotificationInbox } from "@/components/notifications/NotificationInbox";
 import { hasCompanyRole } from "@/lib/auth/company-role";
 import { getAuthenticatedUser } from "@/lib/auth/current-user";
 
@@ -41,6 +42,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
                 Employees
               </Link>
             ) : null}
+            <NotificationInbox />
             <span className="hidden text-sm text-slate-600 sm:inline">
               {user.name ?? user.email}
             </span>
