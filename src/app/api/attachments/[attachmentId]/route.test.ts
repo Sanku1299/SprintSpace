@@ -226,7 +226,7 @@ describe("/api/attachments/[attachmentId]", () => {
     expect(body.error.code).toBe("FORBIDDEN");
     expect(mocks.updateAttachment).not.toHaveBeenCalled();
     expect(mocks.deleteAttachment).not.toHaveBeenCalled();
-    expect(mocks.values.deletionEvents).toEqual(["marker", "s3"]);
+    expect(mocks.values.deletionEvents).toEqual([]);
   });
 
   it("keeps the deletion marker after S3 failure and resumes on retry", async () => {
