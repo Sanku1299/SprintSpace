@@ -50,6 +50,11 @@ const ProjectSchema = new Schema(
       ref: "User",
       required: true,
     },
+    boardRevision: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
     startDate: {
       type: Date,
     },

@@ -7,6 +7,11 @@ import { CollisionPriority } from "@dnd-kit/abstract";
 import { DragDropProvider, useDroppable, type DragEndEvent } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 
+import {
+  hasActiveBoardFilters,
+  isBoardTaskStatus,
+  moveBoardTask as moveBoardTaskState,
+} from "@/lib/tasks/board-move";
 import { TASK_PRIORITIES, TASK_STATUSES } from "@/lib/tasks/task-constants";
 import { TaskDetailsDrawer } from "@/components/tasks/TaskDetailsDrawer";
 
@@ -71,50 +76,27 @@ function initials(name: string): string {
     .join("");
 }
 
-function isTaskStatus(value: unknown): value is TaskStatus {
-  return typeof value === "string" && (TASK_STATUSES as readonly string[]).includes(value);
-}
-
 function moveBoardTask(current: TaskItem[], event: DragEndEvent) {
   if (event.canceled || !isSortable(event.operation.source)) return null;
 
   const { source, target } = event.operation;
-  const fromStatus = isTaskStatus(source.initialGroup) ? source.initialGroup : null;
   const emptyColumnStatus =
     typeof target?.id === "string" && target.id.startsWith("column:")
       ? target.id.slice("column:".length)
       : null;
-  const toStatus = isTaskStatus(emptyColumnStatus)
+  const toStatus = isBoardTaskStatus(emptyColumnStatus)
     ? emptyColumnStatus
-    : isTaskStatus(source.group)
+    : isBoardTaskStatus(source.group)
       ? source.group
       : null;
 
-  if (!fromStatus || !toStatus) return null;
-
-  const groups = Object.fromEntries(
-    TASK_STATUSES.map((status) => [status, current.filter((task) => task.status === status)]),
-  ) as Record<TaskStatus, TaskItem[]>;
-  const sourceTasks = groups[fromStatus];
-  const movedIndex = sourceTasks.findIndex((task) => task.id === String(source.id));
-
-  if (movedIndex < 0) return null;
-
-  const [movedTask] = sourceTasks.splice(movedIndex, 1);
-  const destinationTasks = groups[toStatus];
-  const requestedIndex = emptyColumnStatus ? destinationTasks.length : source.index;
-  const destinationIndex = Math.max(0, Math.min(requestedIndex, destinationTasks.length));
-
-  if (fromStatus === toStatus && movedIndex === destinationIndex) return null;
-
-  destinationTasks.splice(destinationIndex, 0, { ...movedTask, status: toStatus });
-
-  return {
-    tasks: TASK_STATUSES.flatMap((status) => groups[status]),
-    taskId: movedTask.id,
-    fromStatus,
+  if (!toStatus) return null;
+  return moveBoardTaskState(
+    current,
+    String(source.id),
     toStatus,
-  };
+    emptyColumnStatus ? Number.MAX_SAFE_INTEGER : source.index,
+  );
 }
 
 export function ProjectBoardWorkspace({
@@ -206,9 +188,7 @@ export function ProjectBoardWorkspace({
       );
     });
   }, [assigneeFilter, priorityFilter, search, tasks]);
-  const filtersActive = Boolean(
-    search.trim() || priorityFilter !== "all" || assigneeFilter !== "all",
-  );
+  const filtersActive = hasActiveBoardFilters(search, priorityFilter, assigneeFilter);
 
   async function saveMove(event: DragEndEvent) {
     const change = moveBoardTask(tasks, event);
@@ -224,40 +204,35 @@ export function ProjectBoardWorkspace({
     setTasks(change.tasks);
     setSavingMove(true);
 
-    const affectedTasks = canManagePositions
-      ? change.tasks.filter(
-          (task) => task.status === change.fromStatus || task.status === change.toStatus,
-        )
-      : change.tasks.filter((task) => task.id === change.taskId);
-    const updates = affectedTasks.map((task) => ({
-      task,
-      body: canManagePositions
-        ? {
-            status: task.status,
-            position: change.tasks
-              .filter((item) => item.status === task.status)
-              .findIndex((item) => item.id === task.id),
-          }
-        : { status: task.status },
-    }));
-
     try {
-      const responses = await Promise.all(
-        updates.map(({ task, body }) =>
-          fetch(`/api/tasks/${task.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          }),
-        ),
+      const lanes = Object.fromEntries(
+        TASK_STATUSES.map((status) => [
+          status,
+          change.tasks.filter((task) => task.status === status).map((task) => task.id),
+        ]),
       );
-      const payloads = await Promise.all(responses.map((response) => response.json()));
-      const failed = responses.findIndex((response) => !response.ok);
-
-      if (failed >= 0) {
-        const payload = payloads[failed];
-        throw new Error(payload.error?.message ?? "Could not save the task move.");
-      }
+      const body = canManagePositions
+        ? {
+            mode: "reorder",
+            taskId: change.taskId,
+            fromStatus: change.fromStatus,
+            toStatus: change.toStatus,
+            lanes,
+          }
+        : {
+            mode: "status",
+            taskId: change.taskId,
+            fromStatus: change.fromStatus,
+            toStatus: change.toStatus,
+          };
+      const response = await fetch(`/api/projects/${projectId}/board`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error?.message ?? "Could not save the task move.");
+      setTasks(payload.data.tasks as TaskItem[]);
       setNotice("Task move saved.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not save the task move.");
