@@ -3,9 +3,11 @@ import { NextResponse } from "next/server";
 
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
 import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
+import { hasCompanyRole } from "@/lib/auth/company-role";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { Notification } from "@/models/Notification";
 import { Project } from "@/models/Project";
+import { ProjectMember } from "@/models/ProjectMember";
 import { Task } from "@/models/Task";
 
 function error(status: number, code: string, message: string) {
@@ -20,8 +22,33 @@ export async function GET(): Promise<Response> {
     const context = await getWorkspaceContext();
     if (!context) return error(401, "UNAUTHENTICATED", "Sign in to continue.");
     await connectToDatabase();
+    const projectIds = hasCompanyRole(context, "admin")
+      ? null
+      : await ProjectMember.find(workspaceScopedFilter(context, { userId: context.userId }))
+          .distinct("projectId")
+          .exec();
+    const accessFilter = projectIds
+      ? {
+          $or: [
+            { projectId: { $in: projectIds } },
+            ...(hasCompanyRole(context, "project_manager")
+              ? [
+                  {
+                    projectId: {
+                      $in: await Project.find(
+                        workspaceScopedFilter(context, { projectManagerId: context.userId }),
+                      )
+                        .distinct("_id")
+                        .exec(),
+                    },
+                  },
+                ]
+              : []),
+          ],
+        }
+      : {};
     const notifications = await Notification.find(
-      workspaceScopedFilter(context, { recipientId: context.userId }),
+      workspaceScopedFilter(context, { recipientId: context.userId, ...accessFilter }),
     )
       .select("_id projectId taskId type message readAt createdAt")
       .sort({ createdAt: -1, _id: -1 })

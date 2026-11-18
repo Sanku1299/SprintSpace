@@ -19,21 +19,24 @@ type NotificationInput = {
 
 export async function createTaskNotification(input: NotificationInput): Promise<void> {
   if (input.recipientId === input.context.userId) return;
+  try {
+    const activeRecipient = await User.exists(
+      workspaceScopedFilter(input.context, { _id: input.recipientId, status: "active" }),
+    );
+    if (!activeRecipient) return;
 
-  const activeRecipient = await User.exists(
-    workspaceScopedFilter(input.context, { _id: input.recipientId, status: "active" }),
-  );
-  if (!activeRecipient) return;
-
-  await Notification.create({
-    workspaceId: input.context.workspaceId,
-    recipientId: input.recipientId,
-    actorId: input.context.userId,
-    projectId: input.projectId,
-    taskId: input.taskId,
-    type: input.type,
-    message: input.message.slice(0, 300),
-  });
+    await Notification.create({
+      workspaceId: input.context.workspaceId,
+      recipientId: input.recipientId,
+      actorId: input.context.userId,
+      projectId: input.projectId,
+      taskId: input.taskId,
+      type: input.type,
+      message: input.message.slice(0, 300),
+    });
+  } catch (error) {
+    console.error("Could not create task notification.", error);
+  }
 }
 
 export async function createTaskStatusNotifications({
@@ -53,22 +56,26 @@ export async function createTaskStatusNotifications({
   nextStatus: string;
   assigneeId?: IdLike | null;
 }): Promise<void> {
-  const memberIds = await ProjectMember.find(workspaceScopedFilter(context, { projectId }))
-    .distinct("userId")
-    .exec();
-  const recipients = new Set<string>(memberIds.map((id: IdLike) => id.toString()));
-  if (assigneeId) recipients.add(assigneeId.toString());
+  try {
+    const memberIds = await ProjectMember.find(workspaceScopedFilter(context, { projectId }))
+      .distinct("userId")
+      .exec();
+    const recipients = new Set<string>(memberIds.map((id: IdLike) => id.toString()));
+    if (assigneeId) recipients.add(assigneeId.toString());
 
-  await Promise.all(
-    [...recipients].map((recipientId) =>
-      createTaskNotification({
-        context,
-        recipientId,
-        projectId,
-        taskId,
-        type: "task_status_changed",
-        message: `${context.userId} changed “${taskTitle}” from ${previousStatus} to ${nextStatus}.`,
-      }),
-    ),
-  );
+    await Promise.all(
+      [...recipients].map((recipientId) =>
+        createTaskNotification({
+          context,
+          recipientId,
+          projectId,
+          taskId,
+          type: "task_status_changed",
+          message: `${context.userId} changed “${taskTitle}” from ${previousStatus} to ${nextStatus}.`,
+        }),
+      ),
+    );
+  } catch (error) {
+    console.error("Could not create task status notifications.", error);
+  }
 }

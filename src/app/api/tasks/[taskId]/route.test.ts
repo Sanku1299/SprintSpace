@@ -33,6 +33,8 @@ const mocks = vi.hoisted(() => {
       void _activity;
     }),
     taskActivityChanges,
+    createTaskNotification: vi.fn(async () => undefined),
+    createTaskStatusNotifications: vi.fn(async () => undefined),
   };
 });
 
@@ -53,6 +55,10 @@ vi.mock("@/lib/tasks/validate-task-references", () => ({
 vi.mock("@/lib/tasks/task-activity", () => ({
   recordTaskActivity: mocks.recordTaskActivity,
   taskActivityChanges: mocks.taskActivityChanges,
+}));
+vi.mock("@/lib/notifications/generate", () => ({
+  createTaskNotification: mocks.createTaskNotification,
+  createTaskStatusNotifications: mocks.createTaskStatusNotifications,
 }));
 vi.mock("@/models/Task", () => ({
   Task: { findOne: mocks.findTask, findOneAndUpdate: mocks.updateTask },
