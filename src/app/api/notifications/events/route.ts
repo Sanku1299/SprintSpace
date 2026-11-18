@@ -8,8 +8,6 @@ import { Project } from "@/models/Project";
 import { ProjectMember } from "@/models/ProjectMember";
 import { hasCompanyRole } from "@/lib/auth/company-role";
 
-export const runtime = "nodejs";
-
 export async function GET(): Promise<Response> {
   const context = await getWorkspaceContext();
   if (!context) return new Response("Unauthorized", { status: 401 });
