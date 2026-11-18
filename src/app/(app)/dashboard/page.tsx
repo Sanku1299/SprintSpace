@@ -2,12 +2,15 @@ import { getAuthenticatedUser } from "@/lib/auth/current-user";
 import Link from "next/link";
 import { AdminDashboard } from "@/components/dashboard/AdminDashboard";
 import { ProjectManagerDashboard } from "@/components/dashboard/ProjectManagerDashboard";
+import { MyWorkDashboard } from "@/components/dashboard/MyWorkDashboard";
 
 export default async function DashboardPage() {
   const user = await getAuthenticatedUser();
 
   if (user?.role === "admin") return <AdminDashboard name={user.name} />;
   if (user?.role === "project_manager") return <ProjectManagerDashboard name={user.name} />;
+  if (user?.role === "developer" || user?.role === "designer")
+    return <MyWorkDashboard name={user.name} role={user.role} />;
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-12">
