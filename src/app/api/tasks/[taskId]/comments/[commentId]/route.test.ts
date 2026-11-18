@@ -154,7 +154,7 @@ describe("PATCH /api/tasks/[taskId]/comments/[commentId]", () => {
     expect(mocks.findTask).toHaveBeenCalledWith({ _id: taskId, workspaceId });
     expect(mocks.findComment).toHaveBeenCalledWith({
       _id: commentId,
-      taskId: id(taskId),
+      taskId: mocks.values.task._id,
       workspaceId,
     });
     expect(mocks.findProfiles).toHaveBeenCalledWith({
