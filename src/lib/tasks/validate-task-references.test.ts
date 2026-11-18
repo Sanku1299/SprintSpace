@@ -80,7 +80,7 @@ describe("validateTaskReferences", () => {
     });
 
     expect(result).toBe("A task cannot be its own parent.");
-    expect(mocks.findParent).toHaveBeenCalledTimes(2);
+    expect(mocks.findParent).toHaveBeenCalledTimes(1);
   });
 
   it("requires assignees and additional editors to be active workspace Developers or Designers and project members", async () => {
