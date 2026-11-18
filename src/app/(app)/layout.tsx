@@ -21,6 +21,12 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
             SprintSpace
           </Link>
           <div className="flex items-center gap-4">
+            <Link
+              href="/projects"
+              className="text-sm font-medium text-slate-600 transition hover:text-indigo-700"
+            >
+              Projects
+            </Link>
             {hasCompanyRole(user, "admin") ? (
               <Link
                 href="/employees"

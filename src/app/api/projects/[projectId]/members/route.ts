@@ -66,7 +66,7 @@ async function getAuthorizedProject(
   return project;
 }
 
-export async function GET(_request: Request, { params }: RouteContext): Promise<Response> {
+export async function GET(request: Request, { params }: RouteContext): Promise<Response> {
   try {
     const context = await getWorkspaceContext();
 
@@ -119,6 +119,44 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
         },
       ];
     });
+
+    const url = new URL(request.url);
+    const includeAvailable = url.searchParams.get("available") === "true";
+
+    if (includeAvailable) {
+      if (!hasCompanyRole(context, "admin", "project_manager")) {
+        return errorResponse(403, "FORBIDDEN", "You cannot manage project members.");
+      }
+
+      const availableUsers = await User.find(
+        workspaceScopedFilter(context, {
+          role: { $in: ["developer", "designer"] },
+          status: "active",
+          _id: { $nin: memberships.map(({ userId }) => userId) },
+        }),
+      )
+        .select("_id name email role status avatarUrl")
+        .sort({ name: 1, _id: 1 })
+        .lean();
+
+      return NextResponse.json(
+        {
+          success: true,
+          data: {
+            members,
+            availableMembers: availableUsers.map((user) => ({
+              id: user._id.toString(),
+              name: user.name,
+              email: user.email,
+              role: user.role,
+              status: user.status,
+              avatarUrl: user.avatarUrl ?? null,
+            })),
+          },
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    }
 
     return NextResponse.json(
       { success: true, data: { members } },
