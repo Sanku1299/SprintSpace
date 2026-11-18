@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 
 import { TASK_PRIORITIES, TASK_STATUSES } from "@/lib/tasks/task-constants";
 import { TaskCollaboration } from "@/components/tasks/TaskCollaboration";
+import { TaskAttachments } from "@/components/tasks/TaskAttachments";
 import type { CompanyRole } from "@/models/User";
 
 type TaskItem = {
@@ -485,6 +486,18 @@ export function TaskDetailsWorkspace({
                 </p>
               )}
             </form>
+
+            <TaskAttachments
+              key={taskId}
+              taskId={taskId}
+              userId={userId}
+              canUpload={
+                role === "admin" || (role === "project_manager" && userId === projectManagerId)
+              }
+              canManageAll={
+                role === "admin" || (role === "project_manager" && userId === projectManagerId)
+              }
+            />
 
             <section className="mt-9 border-t border-slate-100 pt-6">
               <div className="flex items-end justify-between gap-3">

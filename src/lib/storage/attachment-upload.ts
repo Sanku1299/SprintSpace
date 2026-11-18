@@ -2,22 +2,11 @@ import "server-only";
 
 import { z } from "zod";
 
-export const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
+import { ALLOWED_ATTACHMENT_MIME_TYPES, MAX_ATTACHMENT_SIZE } from "@/lib/storage/attachment-types";
+
+export { ALLOWED_ATTACHMENT_MIME_TYPES, MAX_ATTACHMENT_SIZE } from "@/lib/storage/attachment-types";
 export const UPLOAD_URL_TTL_SECONDS = 5 * 60;
 export const DOWNLOAD_URL_TTL_SECONDS = 5 * 60;
-
-export const ALLOWED_ATTACHMENT_MIME_TYPES = [
-  "application/pdf",
-  "image/gif",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "text/csv",
-  "text/plain",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-] as const;
 
 export const createPresignedUploadSchema = z
   .object({

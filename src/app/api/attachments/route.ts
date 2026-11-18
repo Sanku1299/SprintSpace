@@ -1,4 +1,5 @@
 import { HeadObjectCommand } from "@aws-sdk/client-s3";
+import mongoose from "mongoose";
 import { NextResponse } from "next/server";
 
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
@@ -179,5 +180,44 @@ export async function POST(request: Request): Promise<Response> {
       "SERVICE_UNAVAILABLE",
       "Attachment registration is temporarily unavailable.",
     );
+  }
+}
+
+export async function GET(request: Request): Promise<Response> {
+  try {
+    const context = await getWorkspaceContext();
+    if (!context) return errorResponse(401, "UNAUTHENTICATED", "Sign in to continue.");
+
+    const taskId = new URL(request.url).searchParams.get("taskId");
+    if (!taskId || !mongoose.isValidObjectId(taskId)) {
+      return errorResponse(400, "VALIDATION_ERROR", "A valid task ID is required.");
+    }
+
+    await connectToDatabase();
+    const task = await Task.findOne(workspaceScopedFilter(context, { _id: taskId.toLowerCase() }))
+      .select("_id projectId")
+      .lean();
+    if (!task) return errorResponse(404, "NOT_FOUND", "Task not found.");
+
+    const access = await getAccessibleTaskProject(context, task.projectId.toString());
+    if (!access) return errorResponse(404, "NOT_FOUND", "Task not found.");
+
+    const attachments = await Attachment.find(
+      workspaceScopedFilter(context, {
+        projectId: access.project._id,
+        taskId: task._id,
+        deletionStatus: { $ne: "deleting" },
+      }),
+    )
+      .select("_id workspaceId projectId taskId uploadedBy originalName mimeType size createdAt")
+      .sort({ createdAt: -1, _id: -1 })
+      .lean();
+
+    return NextResponse.json(
+      { success: true, data: { attachments: attachments.map(toAttachmentResponse) } },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  } catch {
+    return errorResponse(503, "SERVICE_UNAVAILABLE", "Attachment list is temporarily unavailable.");
   }
 }

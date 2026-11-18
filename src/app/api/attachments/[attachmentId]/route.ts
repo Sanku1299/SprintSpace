@@ -68,7 +68,7 @@ async function loadAuthorizedAttachment(
   return { attachment, project: access.project };
 }
 
-export async function GET(_request: Request, { params }: RouteContext): Promise<Response> {
+export async function GET(request: Request, { params }: RouteContext): Promise<Response> {
   try {
     const context = await getWorkspaceContext();
     if (!context) return errorResponse(401, "UNAUTHENTICATED", "Sign in to continue.");
@@ -83,6 +83,7 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
     if (!result) return errorResponse(404, "NOT_FOUND", "Attachment not found.");
 
     const { client, config } = getObjectStorageClient();
+    const inline = new URL(request.url).searchParams.get("disposition") === "inline";
     const encodedName = encodeURIComponent(result.attachment.originalName).replace(
       /['()*]/g,
       (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
@@ -93,7 +94,7 @@ export async function GET(_request: Request, { params }: RouteContext): Promise<
         Bucket: config.bucket,
         Key: result.attachment.storageKey,
         ResponseContentType: result.attachment.mimeType,
-        ResponseContentDisposition: `attachment; filename*=UTF-8''${encodedName}`,
+        ResponseContentDisposition: `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodedName}`,
         ResponseCacheControl: "private, no-store",
       }),
       { expiresIn: DOWNLOAD_URL_TTL_SECONDS },
