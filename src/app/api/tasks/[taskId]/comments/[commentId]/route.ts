@@ -100,6 +100,7 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
       const mentionError = await validateCommentMentions({
         context,
         projectId: result.project._id.toString(),
+        projectManagerId: result.project.projectManagerId.toString(),
         mentionIds: parsed.data.mentionIds,
       });
       if (mentionError) return errorResponse(400, "INVALID_MENTION", mentionError);

@@ -8,10 +8,12 @@ import { User } from "@/models/User";
 export async function validateCommentMentions({
   context,
   projectId,
+  projectManagerId,
   mentionIds,
 }: {
   context: WorkspaceContext;
   projectId: string;
+  projectManagerId: string;
   mentionIds: string[];
 }): Promise<string | null> {
   if (mentionIds.length === 0) return null;
@@ -22,21 +24,36 @@ export async function validateCommentMentions({
       status: "active",
     }),
   )
-    .select("_id")
+    .select("_id role")
     .lean();
 
   if (activeUsers.length !== mentionIds.length) {
     return "Mentions must reference active members in this workspace.";
   }
 
+  const activeUsersById = new Map(
+    activeUsers.map((user) => [user._id.toString().toLowerCase(), user]),
+  );
+  const usersRequiringMembership = mentionIds.filter((mentionId) => {
+    const user = activeUsersById.get(mentionId);
+    return !(
+      user?.role === "admin" ||
+      (user?.role === "project_manager" && mentionId === projectManagerId.toLowerCase())
+    );
+  });
+  if (usersRequiringMembership.length === 0) return null;
+
   const memberships = await ProjectMember.find(
-    workspaceScopedFilter(context, { projectId, userId: { $in: mentionIds } }),
+    workspaceScopedFilter(context, {
+      projectId,
+      userId: { $in: usersRequiringMembership },
+    }),
   )
     .select("userId")
     .lean();
   const memberIds = new Set(memberships.map((membership) => membership.userId.toString()));
 
-  if (mentionIds.some((mentionId) => !memberIds.has(mentionId))) {
+  if (usersRequiringMembership.some((mentionId) => !memberIds.has(mentionId))) {
     return "Mentions must reference members of this project.";
   }
 

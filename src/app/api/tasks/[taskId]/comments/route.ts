@@ -128,6 +128,7 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
     const mentionError = await validateCommentMentions({
       context,
       projectId: result.access.project._id.toString(),
+      projectManagerId: result.access.project.projectManagerId.toString(),
       mentionIds: parsed.data.mentionIds,
     });
     if (mentionError) return errorResponse(400, "INVALID_MENTION", mentionError);
