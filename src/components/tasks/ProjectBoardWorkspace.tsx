@@ -9,7 +9,7 @@ import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 
 import { TASK_STATUSES } from "@/lib/tasks/task-constants";
 
-type Project = { id: string; name: string; key: string };
+type Project = { id: string; name: string; key: string; projectManagerId: string };
 type TaskItem = {
   id: string;
   title: string;
@@ -19,9 +19,11 @@ type TaskItem = {
   assigneeId: string | null;
   dueDate: string | null;
   labels: string[];
+  position: number;
 };
 type Member = { id: string; name: string; avatarUrl: string | null };
 type TaskStatus = (typeof TASK_STATUSES)[number];
+type CompanyRole = "admin" | "project_manager" | "developer" | "designer";
 
 const STATUS_LABELS: Record<string, string> = {
   todo: "To do",
@@ -72,11 +74,8 @@ function isTaskStatus(value: unknown): value is TaskStatus {
   return typeof value === "string" && (TASK_STATUSES as readonly string[]).includes(value);
 }
 
-function handleDragEnd(
-  event: DragEndEvent,
-  setTasks: (update: (current: TaskItem[]) => TaskItem[]) => void,
-) {
-  if (event.canceled || !isSortable(event.operation.source)) return;
+function moveBoardTask(current: TaskItem[], event: DragEndEvent) {
+  if (event.canceled || !isSortable(event.operation.source)) return null;
 
   const { source, target } = event.operation;
   const fromStatus = isTaskStatus(source.initialGroup) ? source.initialGroup : null;
@@ -90,32 +89,48 @@ function handleDragEnd(
       ? source.group
       : null;
 
-  if (!fromStatus || !toStatus) return;
+  if (!fromStatus || !toStatus) return null;
 
-  setTasks((current) => {
-    const groups = Object.fromEntries(
-      TASK_STATUSES.map((status) => [status, current.filter((task) => task.status === status)]),
-    ) as Record<TaskStatus, TaskItem[]>;
-    const sourceTasks = groups[fromStatus];
-    const movedIndex = sourceTasks.findIndex((task) => task.id === String(source.id));
+  const groups = Object.fromEntries(
+    TASK_STATUSES.map((status) => [status, current.filter((task) => task.status === status)]),
+  ) as Record<TaskStatus, TaskItem[]>;
+  const sourceTasks = groups[fromStatus];
+  const movedIndex = sourceTasks.findIndex((task) => task.id === String(source.id));
 
-    if (movedIndex < 0) return current;
+  if (movedIndex < 0) return null;
 
-    const [movedTask] = sourceTasks.splice(movedIndex, 1);
-    const destinationTasks = groups[toStatus];
-    const requestedIndex = emptyColumnStatus ? destinationTasks.length : source.index;
-    const destinationIndex = Math.max(0, Math.min(requestedIndex, destinationTasks.length));
-    destinationTasks.splice(destinationIndex, 0, { ...movedTask, status: toStatus });
+  const [movedTask] = sourceTasks.splice(movedIndex, 1);
+  const destinationTasks = groups[toStatus];
+  const requestedIndex = emptyColumnStatus ? destinationTasks.length : source.index;
+  const destinationIndex = Math.max(0, Math.min(requestedIndex, destinationTasks.length));
 
-    return TASK_STATUSES.flatMap((status) => groups[status]);
-  });
+  if (fromStatus === toStatus && movedIndex === destinationIndex) return null;
+
+  destinationTasks.splice(destinationIndex, 0, { ...movedTask, status: toStatus });
+
+  return {
+    tasks: TASK_STATUSES.flatMap((status) => groups[status]),
+    taskId: movedTask.id,
+    fromStatus,
+    toStatus,
+  };
 }
 
-export function ProjectBoardWorkspace({ projectId }: { projectId: string }) {
+export function ProjectBoardWorkspace({
+  projectId,
+  role,
+  userId,
+}: {
+  projectId: string;
+  role: CompanyRole;
+  userId: string;
+}) {
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
+  const [savingMove, setSavingMove] = useState(false);
+  const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -161,6 +176,72 @@ export function ProjectBoardWorkspace({ projectId }: { projectId: string }) {
   }, [projectId]);
 
   const membersById = new Map(members.map((member) => [member.id, member]));
+  const canManagePositions = Boolean(
+    role === "admin" || (role === "project_manager" && project?.projectManagerId === userId),
+  );
+
+  async function saveMove(event: DragEndEvent) {
+    const change = moveBoardTask(tasks, event);
+    if (!change) return;
+
+    if (change.fromStatus === change.toStatus && !canManagePositions) {
+      setError("Only the project manager or an Admin can reorder tasks within a status.");
+      return;
+    }
+
+    setError("");
+    setNotice("");
+    setTasks(change.tasks);
+    setSavingMove(true);
+
+    const affectedTasks = canManagePositions
+      ? change.tasks.filter(
+          (task) => task.status === change.fromStatus || task.status === change.toStatus,
+        )
+      : change.tasks.filter((task) => task.id === change.taskId);
+    const updates = affectedTasks.map((task) => ({
+      task,
+      body: canManagePositions
+        ? {
+            status: task.status,
+            position: change.tasks
+              .filter((item) => item.status === task.status)
+              .findIndex((item) => item.id === task.id),
+          }
+        : { status: task.status },
+    }));
+
+    try {
+      const responses = await Promise.all(
+        updates.map(({ task, body }) =>
+          fetch(`/api/tasks/${task.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          }),
+        ),
+      );
+      const payloads = await Promise.all(responses.map((response) => response.json()));
+      const failed = responses.findIndex((response) => !response.ok);
+
+      if (failed >= 0) {
+        const payload = payloads[failed];
+        throw new Error(payload.error?.message ?? "Could not save the task move.");
+      }
+      setNotice("Task move saved.");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not save the task move.");
+      try {
+        const response = await fetch(`/api/projects/${projectId}/tasks`, { cache: "no-store" });
+        const payload = await response.json();
+        if (response.ok) setTasks(payload.data.tasks as TaskItem[]);
+      } catch {
+        // Keep the optimistic board state visible if a refresh also fails.
+      }
+    } finally {
+      setSavingMove(false);
+    }
+  }
 
   return (
     <main className="mx-auto w-full max-w-7xl px-5 py-8 sm:px-8 sm:py-11">
@@ -195,8 +276,26 @@ export function ProjectBoardWorkspace({ projectId }: { projectId: string }) {
           {error}
         </p>
       ) : null}
+      {notice ? (
+        <p
+          role="status"
+          className="mt-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+        >
+          {notice}
+        </p>
+      ) : null}
+      {savingMove ? (
+        <p className="mt-4 text-xs font-medium text-slate-500" role="status">
+          Saving task order…
+        </p>
+      ) : null}
 
-      <DragDropProvider onDragEnd={(event) => handleDragEnd(event, setTasks)}>
+      <DragDropProvider
+        onBeforeDragStart={(event) => {
+          if (savingMove) event.preventDefault();
+        }}
+        onDragEnd={(event) => void saveMove(event)}
+      >
         <div className="mt-8 flex gap-4 overflow-x-auto pb-3">
           {TASK_STATUSES.map((status) => {
             const statusTasks = tasks.filter((task) => task.status === status);
