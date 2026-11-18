@@ -12,6 +12,8 @@
     "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\" \"*.{js,mjs,ts,mts,json,md}\""
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1171.0",
+    "@aws-sdk/s3-presigned-post": "^3.1171.0",
     "@dnd-kit/abstract": "^0.5.3",
     "@dnd-kit/react": "^0.5.3",
     "mongoose": "^9.12.2",
