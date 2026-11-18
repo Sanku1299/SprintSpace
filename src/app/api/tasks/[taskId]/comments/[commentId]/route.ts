@@ -7,13 +7,15 @@ import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { getAccessibleTaskProject } from "@/lib/tasks/task-project-access";
 import { toTaskCommentResponse } from "@/lib/tasks/task-comment-response";
-import { taskCommentSchema } from "@/lib/validation/task-comment";
+import { validateCommentMentions } from "@/lib/tasks/validate-comment-mentions";
+import { updateTaskCommentSchema } from "@/lib/validation/task-comment";
 import { TaskComment } from "@/models/TaskComment";
 import { Task } from "@/models/Task";
 import { User } from "@/models/User";
 
 type RouteContext = { params: Promise<{ taskId: string; commentId: string }> };
-const COMMENT_FIELDS = "_id workspaceId projectId taskId authorId content createdAt updatedAt";
+const COMMENT_FIELDS =
+  "_id workspaceId projectId taskId authorId mentionIds content createdAt updatedAt";
 
 function errorResponse(status: number, code: string, message: string): Response {
   return NextResponse.json(
@@ -56,7 +58,7 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
     return errorResponse(400, "INVALID_JSON", "Request body must be valid JSON.");
   }
 
-  const parsed = taskCommentSchema.safeParse(body);
+  const parsed = updateTaskCommentSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       {
@@ -88,27 +90,57 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
       _id: commentId,
       taskId: result.task._id,
     });
-    const existing = await TaskComment.findOne(filter).select("_id authorId").lean();
+    const existing = await TaskComment.findOne(filter).select("_id authorId mentionIds").lean();
     if (!existing) return errorResponse(404, "NOT_FOUND", "Comment not found.");
     if (!canManageComment(context, result.project, existing.authorId)) {
       return errorResponse(403, "FORBIDDEN", "You cannot edit this comment.");
     }
 
+    if (parsed.data.mentionIds !== undefined) {
+      const mentionError = await validateCommentMentions({
+        context,
+        projectId: result.project._id.toString(),
+        mentionIds: parsed.data.mentionIds,
+      });
+      if (mentionError) return errorResponse(400, "INVALID_MENTION", mentionError);
+    }
+
     const comment = await TaskComment.findOneAndUpdate(
       filter,
-      { $set: { content: parsed.data.content } },
+      {
+        $set: {
+          content: parsed.data.content,
+          ...(parsed.data.mentionIds !== undefined ? { mentionIds: parsed.data.mentionIds } : {}),
+        },
+      },
       { new: true, runValidators: true },
     )
       .select(COMMENT_FIELDS)
       .lean();
     if (!comment) return errorResponse(404, "NOT_FOUND", "Comment not found.");
 
-    const author = await User.findOne(workspaceScopedFilter(context, { _id: comment.authorId }))
+    const profileIds = [
+      comment.authorId.toString(),
+      ...(comment.mentionIds ?? []).map((mentionId: mongoose.Types.ObjectId) =>
+        mentionId.toString(),
+      ),
+    ];
+    const profiles = await User.find(workspaceScopedFilter(context, { _id: { $in: profileIds } }))
       .select("_id name avatarUrl")
       .lean();
+    const profilesById = new Map(profiles.map((profile) => [profile._id.toString(), profile]));
 
     return NextResponse.json(
-      { success: true, data: { comment: toTaskCommentResponse(comment, author ?? undefined) } },
+      {
+        success: true,
+        data: {
+          comment: toTaskCommentResponse(
+            comment,
+            profilesById.get(comment.authorId.toString()),
+            profilesById,
+          ),
+        },
+      },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch {

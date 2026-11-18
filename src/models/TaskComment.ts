@@ -25,6 +25,10 @@ const TaskCommentSchema = new Schema(
       ref: "User",
       required: true,
     },
+    mentionIds: {
+      type: [{ type: Schema.Types.ObjectId, ref: "User" }],
+      default: [],
+    },
     content: {
       type: String,
       required: true,
