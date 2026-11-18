@@ -7,6 +7,7 @@ import { getWorkspaceContext } from "@/lib/auth/workspace-context";
 import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { TASK_API_FIELDS, toTaskResponse } from "@/lib/tasks/task-api-response";
+import { recordTaskActivity } from "@/lib/tasks/task-activity";
 import { getAccessibleTaskProject } from "@/lib/tasks/task-project-access";
 import { TASK_STATUSES } from "@/lib/tasks/task-constants";
 import { Project } from "@/models/Project";
@@ -176,6 +177,14 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
               "This task changed. Refresh the board and try again.",
             );
           }
+          await recordTaskActivity({
+            context,
+            projectId: access.project._id,
+            taskId: task._id,
+            type: "task_status_changed",
+            changes: [{ field: "status", from: task.status, to: input.toStatus }],
+            session,
+          });
         } else {
           await persistReorder({
             context,
@@ -294,6 +303,19 @@ async function persistReorder({
   if (result.matchedCount !== operations.length) {
     throw new BoardMoveError(409, "STALE_BOARD", "The board changed. Refresh and try again.");
   }
+
+  const nextPosition = move.lanes[move.toStatus].indexOf(move.taskId);
+  await recordTaskActivity({
+    context,
+    projectId: project._id,
+    taskId: movedTask._id,
+    type: "task_reordered",
+    changes: [
+      { field: "status", from: movedTask.status, to: move.toStatus },
+      { field: "position", from: movedTask.position, to: nextPosition },
+    ],
+    session,
+  });
 }
 
 function loadProjectTasks(

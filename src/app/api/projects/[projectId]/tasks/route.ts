@@ -6,6 +6,7 @@ import { getWorkspaceContext } from "@/lib/auth/workspace-context";
 import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { TASK_API_FIELDS, toTaskResponse } from "@/lib/tasks/task-api-response";
+import { recordTaskActivity, taskActivityChanges } from "@/lib/tasks/task-activity";
 import { getAccessibleTaskProject } from "@/lib/tasks/task-project-access";
 import { validateTaskReferences } from "@/lib/tasks/validate-task-references";
 import { createTaskSchema } from "@/lib/validation/task";
@@ -125,6 +126,13 @@ export async function POST(request: Request, { params }: RouteContext): Promise<
       workspaceId: context.workspaceId,
       projectId: access.project._id,
       createdBy: context.userId,
+    });
+    await recordTaskActivity({
+      context,
+      projectId: task.projectId,
+      taskId: task._id,
+      type: "task_created",
+      changes: taskActivityChanges({}, parsed.data as Record<string, unknown>),
     });
 
     return NextResponse.json(

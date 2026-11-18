@@ -65,6 +65,10 @@ vi.mock("@/lib/tasks/task-project-access", () => ({
 vi.mock("@/lib/tasks/validate-comment-mentions", () => ({
   validateCommentMentions: mocks.validateMentions,
 }));
+vi.mock("@/lib/tasks/task-activity", () => ({
+  recordTaskActivity: vi.fn(async () => undefined),
+  taskActivityChanges: vi.fn(() => []),
+}));
 vi.mock("@/models/Task", () => ({ Task: { findOne: mocks.findTask } }));
 vi.mock("@/models/TaskComment", () => ({
   TaskComment: {

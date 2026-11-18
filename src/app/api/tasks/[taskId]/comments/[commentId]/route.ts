@@ -6,6 +6,7 @@ import { getWorkspaceContext } from "@/lib/auth/workspace-context";
 import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { getAccessibleTaskProject } from "@/lib/tasks/task-project-access";
+import { recordTaskActivity, taskActivityChanges } from "@/lib/tasks/task-activity";
 import { toTaskCommentResponse } from "@/lib/tasks/task-comment-response";
 import { validateCommentMentions } from "@/lib/tasks/validate-comment-mentions";
 import { updateTaskCommentSchema } from "@/lib/validation/task-comment";
@@ -90,7 +91,9 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
       _id: commentId,
       taskId: result.task._id,
     });
-    const existing = await TaskComment.findOne(filter).select("_id authorId mentionIds").lean();
+    const existing = await TaskComment.findOne(filter)
+      .select("_id authorId mentionIds content")
+      .lean();
     if (!existing) return errorResponse(404, "NOT_FOUND", "Comment not found.");
     if (!canManageComment(context, result.project, existing.authorId)) {
       return errorResponse(403, "FORBIDDEN", "You cannot edit this comment.");
@@ -119,6 +122,26 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
       .select(COMMENT_FIELDS)
       .lean();
     if (!comment) return errorResponse(404, "NOT_FOUND", "Comment not found.");
+
+    const commentChanges = taskActivityChanges(
+      {
+        content: existing.content,
+        mentionIds: existing.mentionIds ?? [],
+      },
+      {
+        content: parsed.data.content,
+        mentionIds: parsed.data.mentionIds ?? existing.mentionIds ?? [],
+      },
+    );
+    if (commentChanges.length > 0) {
+      await recordTaskActivity({
+        context,
+        projectId: result.project._id,
+        taskId: result.task._id,
+        type: "comment_updated",
+        changes: [{ field: "commentId", from: null, to: comment._id }, ...commentChanges],
+      });
+    }
 
     const profileIds = [
       comment.authorId.toString(),
@@ -175,6 +198,13 @@ export async function DELETE(_request: Request, { params }: RouteContext): Promi
 
     const deletion = await TaskComment.deleteOne(filter);
     if (deletion.deletedCount !== 1) return errorResponse(404, "NOT_FOUND", "Comment not found.");
+    await recordTaskActivity({
+      context,
+      projectId: result.project._id,
+      taskId: result.task._id,
+      type: "comment_deleted",
+      changes: [{ field: "commentId", from: commentId, to: null }],
+    });
 
     return NextResponse.json(
       { success: true, data: { deletedCommentId: commentId } },

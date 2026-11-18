@@ -117,6 +117,9 @@ vi.mock("@/lib/db/mongoose", () => ({ connectToDatabase: mocks.connect }));
 vi.mock("@/lib/tasks/task-project-access", () => ({
   getAccessibleTaskProject: mocks.getAccess,
 }));
+vi.mock("@/lib/tasks/task-activity", () => ({
+  recordTaskActivity: vi.fn(async () => undefined),
+}));
 vi.mock("@/models/Project", () => ({ Project: { updateOne: mocks.updateProject } }));
 vi.mock("@/models/ProjectMember", () => ({ ProjectMember: { findOne: mocks.findMember } }));
 vi.mock("@/models/Task", () => ({

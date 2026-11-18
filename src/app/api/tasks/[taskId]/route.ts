@@ -6,6 +6,7 @@ import { getWorkspaceContext } from "@/lib/auth/workspace-context";
 import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { connectToDatabase } from "@/lib/db/mongoose";
 import { TASK_API_FIELDS, toTaskResponse } from "@/lib/tasks/task-api-response";
+import { recordTaskActivity, taskActivityChanges } from "@/lib/tasks/task-activity";
 import { getAccessibleTaskProject } from "@/lib/tasks/task-project-access";
 import { validateTaskReferences } from "@/lib/tasks/validate-task-references";
 import { updateTaskSchema } from "@/lib/validation/task";
@@ -102,7 +103,7 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
 
     await connectToDatabase();
     const task = await Task.findOne(workspaceScopedFilter(context, { _id: taskId })).select(
-      "_id workspaceId projectId assigneeId allowedEditorIds",
+      "_id workspaceId projectId title description status priority assigneeId allowedEditorIds dueDate labels parentTaskId position",
     );
 
     if (!task) {
@@ -163,6 +164,24 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
 
     if (!updatedTask) {
       return errorResponse(404, "NOT_FOUND", "Task not found.");
+    }
+
+    const currentTask = task as unknown as Record<string, unknown>;
+    const previousValues = Object.fromEntries(
+      Object.keys(parsed.data).map((field) => [field, currentTask[field]]),
+    );
+    const changes = taskActivityChanges(previousValues, parsed.data as Record<string, unknown>);
+    if (changes.length > 0) {
+      await recordTaskActivity({
+        context,
+        projectId: access.project._id,
+        taskId: task._id,
+        type:
+          changes.length === 1 && changes[0]?.field === "status"
+            ? "task_status_changed"
+            : "task_updated",
+        changes,
+      });
     }
 
     return NextResponse.json(
