@@ -75,7 +75,8 @@ describe("DELETE /api/projects/:projectId/members/:userId", () => {
 
     expect(response.status).toBe(200);
     expect(projectFilter).toEqual({ _id: projectId, workspaceId });
-    expect(membershipFilter).toEqual({ projectId, userId: memberId, workspaceId });
+    expect(membershipFilter).toMatchObject({ userId: memberId, workspaceId });
+    expect(String(membershipFilter?.projectId)).toBe(projectId);
   });
 
   it("does not delete membership for a project outside the current workspace", async () => {

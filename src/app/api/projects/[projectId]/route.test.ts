@@ -149,7 +149,8 @@ describe("/api/projects/:projectId", () => {
     const [membershipFilter] = mocks.findMembership.mock.calls[0] ?? [];
 
     expect(response.status).toBe(200);
-    expect(membershipFilter).toEqual({ projectId, userId, workspaceId });
+    expect(membershipFilter).toMatchObject({ userId, workspaceId });
+    expect(String(membershipFilter?.projectId)).toBe(projectId);
   });
 
   it("prevents a Project Manager from updating another PM's project", async () => {

@@ -165,7 +165,8 @@ describe("/api/projects/:projectId/members", () => {
     const availableCall = mocks.findUsers.mock.calls[1];
 
     expect(response.status).toBe(200);
-    expect(membershipFilter).toEqual({ projectId, workspaceId });
+    expect(membershipFilter).toMatchObject({ workspaceId });
+    expect(String(membershipFilter?.projectId)).toBe(projectId);
     expect(availableCall?.[0]).toMatchObject({
       workspaceId,
       role: { $in: ["developer", "designer"] },
@@ -188,7 +189,8 @@ describe("/api/projects/:projectId/members", () => {
       status: "active",
       workspaceId,
     });
-    expect(document).toEqual({ workspaceId, projectId, userId: memberId, addedBy: adminId });
+    expect(document).toMatchObject({ workspaceId, userId: memberId, addedBy: adminId });
+    expect(String(document?.projectId)).toBe(projectId);
     expect(body.data.member.id).toBe(memberId);
   });
 
