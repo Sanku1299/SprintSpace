@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { CollisionPriority } from "@dnd-kit/abstract";
 import { DragDropProvider, useDroppable, type DragEndEvent } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 
-import { TASK_STATUSES } from "@/lib/tasks/task-constants";
+import { TASK_PRIORITIES, TASK_STATUSES } from "@/lib/tasks/task-constants";
 
 type Project = { id: string; name: string; key: string; projectManagerId: string };
 type TaskItem = {
@@ -132,6 +132,9 @@ export function ProjectBoardWorkspace({
   const [savingMove, setSavingMove] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("all");
+  const [assigneeFilter, setAssigneeFilter] = useState("all");
 
   useEffect(() => {
     let active = true;
@@ -178,6 +181,31 @@ export function ProjectBoardWorkspace({
   const membersById = new Map(members.map((member) => [member.id, member]));
   const canManagePositions = Boolean(
     role === "admin" || (role === "project_manager" && project?.projectManagerId === userId),
+  );
+  const filteredTasks = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return tasks.filter((task) => {
+      if (priorityFilter !== "all" && task.priority !== priorityFilter) return false;
+      if (assigneeFilter === "unassigned" && task.assigneeId) return false;
+      if (
+        assigneeFilter !== "all" &&
+        assigneeFilter !== "unassigned" &&
+        task.assigneeId !== assigneeFilter
+      ) {
+        return false;
+      }
+      if (!query) return true;
+
+      return (
+        task.title.toLowerCase().includes(query) ||
+        task.description.toLowerCase().includes(query) ||
+        task.labels.some((label) => label.toLowerCase().includes(query))
+      );
+    });
+  }, [assigneeFilter, priorityFilter, search, tasks]);
+  const filtersActive = Boolean(
+    search.trim() || priorityFilter !== "all" || assigneeFilter !== "all",
   );
 
   async function saveMove(event: DragEndEvent) {
@@ -290,15 +318,87 @@ export function ProjectBoardWorkspace({
         </p>
       ) : null}
 
+      <section
+        aria-label="Board search and filters"
+        className="mt-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+      >
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem_14rem]">
+          <label className="sr-only" htmlFor="board-search">
+            Search task titles, descriptions, and labels
+          </label>
+          <input
+            id="board-search"
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search tasks or labels"
+            className={filterInputClass}
+          />
+          <label className="sr-only" htmlFor="board-priority-filter">
+            Filter tasks by priority
+          </label>
+          <select
+            id="board-priority-filter"
+            value={priorityFilter}
+            onChange={(event) => setPriorityFilter(event.target.value)}
+            className={filterInputClass}
+          >
+            <option value="all">All priorities</option>
+            {TASK_PRIORITIES.map((priority) => (
+              <option key={priority} value={priority}>
+                {priority[0].toUpperCase() + priority.slice(1)}
+              </option>
+            ))}
+          </select>
+          <label className="sr-only" htmlFor="board-assignee-filter">
+            Filter tasks by assignee
+          </label>
+          <select
+            id="board-assignee-filter"
+            value={assigneeFilter}
+            onChange={(event) => setAssigneeFilter(event.target.value)}
+            className={filterInputClass}
+          >
+            <option value="all">All assignees</option>
+            <option value="unassigned">Unassigned</option>
+            {members.map((member) => (
+              <option key={member.id} value={member.id}>
+                {member.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-slate-500">
+            Showing {filteredTasks.length} of {tasks.length} tasks
+            {filtersActive ? " · Clear filters to rearrange cards" : ""}
+          </p>
+          {filtersActive ? (
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setPriorityFilter("all");
+                setAssigneeFilter("all");
+              }}
+              className="text-xs font-semibold text-indigo-700 hover:text-indigo-900"
+            >
+              Clear filters
+            </button>
+          ) : null}
+        </div>
+      </section>
+
       <DragDropProvider
         onBeforeDragStart={(event) => {
           if (savingMove) event.preventDefault();
+          if (filtersActive) event.preventDefault();
         }}
         onDragEnd={(event) => void saveMove(event)}
       >
         <div className="mt-8 flex gap-4 overflow-x-auto pb-3">
           {TASK_STATUSES.map((status) => {
-            const statusTasks = tasks.filter((task) => task.status === status);
+            const statusTasks = filteredTasks.filter((task) => task.status === status);
 
             return (
               <BoardColumn
@@ -306,6 +406,7 @@ export function ProjectBoardWorkspace({
                 status={status}
                 count={statusTasks.length}
                 loading={loading}
+                filtersActive={filtersActive}
               >
                 {statusTasks.map((task, index) => (
                   <TaskCard
@@ -313,6 +414,7 @@ export function ProjectBoardWorkspace({
                     task={task}
                     index={index}
                     assignee={membersById.get(task.assigneeId ?? "")}
+                    disabled={filtersActive}
                   />
                 ))}
               </BoardColumn>
@@ -328,11 +430,13 @@ function BoardColumn({
   status,
   count,
   loading,
+  filtersActive,
   children,
 }: {
   status: TaskStatus;
   count: number;
   loading: boolean;
+  filtersActive: boolean;
   children: ReactNode;
 }) {
   const { isDropTarget, ref } = useDroppable({
@@ -364,7 +468,7 @@ function BoardColumn({
         {children}
         {!loading && count === 0 ? (
           <p className="rounded-xl border border-dashed border-slate-300 px-3 py-6 text-center text-xs text-slate-400">
-            Drop tasks here
+            {filtersActive ? "No matching tasks" : "Drop tasks here"}
           </p>
         ) : null}
         {loading ? <div className="h-20 animate-pulse rounded-xl bg-white/80" /> : null}
@@ -373,13 +477,24 @@ function BoardColumn({
   );
 }
 
-function TaskCard({ task, index, assignee }: { task: TaskItem; index: number; assignee?: Member }) {
+function TaskCard({
+  task,
+  index,
+  assignee,
+  disabled,
+}: {
+  task: TaskItem;
+  index: number;
+  assignee?: Member;
+  disabled: boolean;
+}) {
   const { ref, handleRef, isDragging } = useSortable({
     id: task.id,
     index,
     group: task.status,
     type: "task",
     accept: "task",
+    disabled,
   });
   const overdue = isOverdue(task);
 
@@ -461,3 +576,6 @@ function TaskCard({ task, index, assignee }: { task: TaskItem; index: number; as
     </article>
   );
 }
+
+const filterInputClass =
+  "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100";
