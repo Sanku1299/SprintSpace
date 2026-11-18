@@ -75,4 +75,15 @@ describe("POST /api/invitations/:invitationId/revoke", () => {
     expect(response.status).toBe(409);
     expect(state.updateInvitation).not.toHaveBeenCalled();
   });
+
+  it("does not reveal invitations outside the trusted workspace", async () => {
+    state.values.invitation = null;
+
+    const response = await POST(new Request("http://localhost"), {
+      params: Promise.resolve({ invitationId }),
+    });
+
+    expect(response.status).toBe(404);
+    expect(state.updateInvitation).not.toHaveBeenCalled();
+  });
 });
