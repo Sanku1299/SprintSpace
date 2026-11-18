@@ -13,6 +13,10 @@ const mocks = vi.hoisted(() => {
     sort: vi.fn(() => taskQuery),
     lean: vi.fn(async () => values.tasks),
   };
+  const taskActivityChanges = vi.fn(
+    (previous: Record<string, unknown>, next: Record<string, unknown>) =>
+      Object.entries(next).map(([field, to]) => ({ field, from: previous[field] ?? null, to })),
+  );
   return {
     values,
     taskQuery,
@@ -22,6 +26,10 @@ const mocks = vi.hoisted(() => {
     findTasks: vi.fn(() => taskQuery),
     createTask: vi.fn(async () => values.createdTask),
     validateReferences: vi.fn(async () => values.referenceError),
+    recordTaskActivity: vi.fn(async (_activity: Record<string, unknown>) => {
+      void _activity;
+    }),
+    taskActivityChanges,
   };
 });
 
@@ -40,8 +48,8 @@ vi.mock("@/lib/tasks/validate-task-references", () => ({
   validateTaskReferences: mocks.validateReferences,
 }));
 vi.mock("@/lib/tasks/task-activity", () => ({
-  recordTaskActivity: vi.fn(async () => undefined),
-  taskActivityChanges: vi.fn(() => []),
+  recordTaskActivity: mocks.recordTaskActivity,
+  taskActivityChanges: mocks.taskActivityChanges,
 }));
 vi.mock("@/models/Task", () => ({ Task: { find: mocks.findTasks, create: mocks.createTask } }));
 
@@ -104,6 +112,8 @@ describe("/api/projects/[projectId]/tasks", () => {
     mocks.findTasks.mockClear();
     mocks.createTask.mockClear();
     mocks.validateReferences.mockClear();
+    mocks.recordTaskActivity.mockClear();
+    mocks.taskActivityChanges.mockClear();
   });
 
   it("lists tasks only when the project is accessible in the current workspace", async () => {
@@ -128,6 +138,15 @@ describe("/api/projects/[projectId]/tasks", () => {
       expect.objectContaining({ context: mocks.values.context, projectId }),
     );
     expect(mocks.createTask).toHaveBeenCalled();
+    expect(mocks.recordTaskActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: mocks.values.context,
+        projectId: mocks.values.createdTask.projectId,
+        taskId: mocks.values.createdTask._id,
+        type: "task_created",
+        changes: expect.arrayContaining([{ field: "title", from: null, to: "Create task list" }]),
+      }),
+    );
   });
 
   it("rejects a task reference that fails workspace or project validation", async () => {

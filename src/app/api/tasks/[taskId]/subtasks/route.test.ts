@@ -22,6 +22,10 @@ const mocks = vi.hoisted(() => {
     sort: vi.fn(() => subtaskQuery),
     lean: vi.fn(async () => values.subtasks),
   };
+  const taskActivityChanges = vi.fn(
+    (previous: Record<string, unknown>, next: Record<string, unknown>) =>
+      Object.entries(next).map(([field, to]) => ({ field, from: previous[field] ?? null, to })),
+  );
   return {
     values,
     parentQuery,
@@ -33,6 +37,10 @@ const mocks = vi.hoisted(() => {
     findSubtasks: vi.fn(() => subtaskQuery),
     createTask: vi.fn(async () => values.createdSubtask),
     validateReferences: vi.fn(async () => values.referenceError),
+    recordTaskActivity: vi.fn(async (_activity: Record<string, unknown>) => {
+      void _activity;
+    }),
+    taskActivityChanges,
   };
 });
 
@@ -51,8 +59,8 @@ vi.mock("@/lib/tasks/validate-task-references", () => ({
   validateTaskReferences: mocks.validateReferences,
 }));
 vi.mock("@/lib/tasks/task-activity", () => ({
-  recordTaskActivity: vi.fn(async () => undefined),
-  taskActivityChanges: vi.fn(() => []),
+  recordTaskActivity: mocks.recordTaskActivity,
+  taskActivityChanges: mocks.taskActivityChanges,
 }));
 vi.mock("@/models/Task", () => ({
   Task: { findOne: mocks.findParent, find: mocks.findSubtasks, create: mocks.createTask },
@@ -120,6 +128,8 @@ describe("/api/tasks/[taskId]/subtasks", () => {
     mocks.findSubtasks.mockClear();
     mocks.createTask.mockClear();
     mocks.validateReferences.mockClear();
+    mocks.recordTaskActivity.mockClear();
+    mocks.taskActivityChanges.mockClear();
   });
 
   it("lists subtasks for an accessible parent", async () => {
@@ -151,6 +161,17 @@ describe("/api/tasks/[taskId]/subtasks", () => {
         workspaceId,
         projectId: expect.anything(),
         parentTaskId: expect.anything(),
+      }),
+    );
+    expect(mocks.recordTaskActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context: mocks.values.context,
+        projectId: mocks.values.createdSubtask.projectId as unknown,
+        taskId: mocks.values.createdSubtask._id,
+        type: "task_created",
+        changes: expect.arrayContaining([
+          { field: "title", from: null, to: "Check mobile layout" },
+        ]),
       }),
     );
   });

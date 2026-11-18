@@ -14,6 +14,10 @@ const mocks = vi.hoisted(() => {
     then: (resolve: (value: unknown) => unknown) => Promise.resolve(values.task).then(resolve),
   };
   const updatedQuery = { select: vi.fn(async () => values.updatedTask) };
+  const taskActivityChanges = vi.fn(
+    (previous: Record<string, unknown>, next: Record<string, unknown>) =>
+      Object.entries(next).map(([field, to]) => ({ field, from: previous[field] ?? null, to })),
+  );
 
   return {
     values,
@@ -25,6 +29,10 @@ const mocks = vi.hoisted(() => {
     updateTask: vi.fn(() => updatedQuery),
     getAccess: vi.fn(async () => values.access),
     validateReferences: vi.fn(async () => null),
+    recordTaskActivity: vi.fn(async (_activity: Record<string, unknown>) => {
+      void _activity;
+    }),
+    taskActivityChanges,
   };
 });
 
@@ -43,8 +51,8 @@ vi.mock("@/lib/tasks/validate-task-references", () => ({
   validateTaskReferences: mocks.validateReferences,
 }));
 vi.mock("@/lib/tasks/task-activity", () => ({
-  recordTaskActivity: vi.fn(async () => undefined),
-  taskActivityChanges: vi.fn(() => []),
+  recordTaskActivity: mocks.recordTaskActivity,
+  taskActivityChanges: mocks.taskActivityChanges,
 }));
 vi.mock("@/models/Task", () => ({
   Task: { findOne: mocks.findTask, findOneAndUpdate: mocks.updateTask },
@@ -114,6 +122,8 @@ describe("/api/tasks/[taskId]", () => {
     mocks.findTask.mockClear();
     mocks.updateTask.mockClear();
     mocks.validateReferences.mockClear();
+    mocks.recordTaskActivity.mockClear();
+    mocks.taskActivityChanges.mockClear();
   });
 
   it("returns an accessible task detail", async () => {
@@ -155,6 +165,16 @@ describe("/api/tasks/[taskId]", () => {
 
       expect(response.status).toBe(200);
       expect(mocks.updateTask).toHaveBeenCalled();
+      expect(mocks.recordTaskActivity).toHaveBeenCalledWith(
+        expect.objectContaining({
+          context: mocks.values.context,
+          projectId:
+            mocks.values.access?.project && (mocks.values.access.project as { _id: unknown })._id,
+          taskId: (mocks.values.task as { _id: unknown })._id,
+          type: "task_status_changed",
+          changes: [{ field: "status", from: "todo", to: "in_progress" }],
+        }),
+      );
     },
   );
 

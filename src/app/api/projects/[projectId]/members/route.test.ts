@@ -162,7 +162,10 @@ describe("/api/projects/:projectId/members", () => {
     );
     const body = await response.json();
     const [membershipFilter] = mocks.findMemberships.mock.calls[0] ?? [];
-    const availableCall = mocks.findUsers.mock.calls[1];
+    const availableCall = mocks.findUsers.mock.calls.find(([filter]) => {
+      const roleFilter = filter.role as { $in?: string[] } | undefined;
+      return roleFilter?.$in?.includes("developer") && roleFilter.$in.includes("designer");
+    });
 
     expect(response.status).toBe(200);
     expect(membershipFilter).toMatchObject({ workspaceId });

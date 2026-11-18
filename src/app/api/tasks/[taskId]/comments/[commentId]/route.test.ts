@@ -33,6 +33,10 @@ const mocks = vi.hoisted(() => {
     select: vi.fn(() => profileQuery),
     lean: vi.fn(async () => values.profiles),
   };
+  const taskActivityChanges = vi.fn(
+    (previous: Record<string, unknown>, next: Record<string, unknown>) =>
+      Object.entries(next).map(([field, to]) => ({ field, from: previous[field] ?? null, to })),
+  );
 
   return {
     values,
@@ -48,6 +52,10 @@ const mocks = vi.hoisted(() => {
     updateComment: vi.fn(() => updatedCommentQuery),
     findProfiles: vi.fn(() => profileQuery),
     validateMentions: vi.fn(async () => null),
+    recordTaskActivity: vi.fn(async (_activity: Record<string, unknown>) => {
+      void _activity;
+    }),
+    taskActivityChanges,
   };
 });
 
@@ -66,8 +74,8 @@ vi.mock("@/lib/tasks/validate-comment-mentions", () => ({
   validateCommentMentions: mocks.validateMentions,
 }));
 vi.mock("@/lib/tasks/task-activity", () => ({
-  recordTaskActivity: vi.fn(async () => undefined),
-  taskActivityChanges: vi.fn(() => []),
+  recordTaskActivity: mocks.recordTaskActivity,
+  taskActivityChanges: mocks.taskActivityChanges,
 }));
 vi.mock("@/models/Task", () => ({ Task: { findOne: mocks.findTask } }));
 vi.mock("@/models/TaskComment", () => ({
@@ -113,7 +121,12 @@ describe("PATCH /api/tasks/[taskId]/comments/[commentId]", () => {
       workspaceId: id(workspaceId),
       projectManagerId: id(managerId),
     };
-    mocks.values.comment = { _id: id(commentId), authorId: id(authorId), mentionIds: [] };
+    mocks.values.comment = {
+      _id: id(commentId),
+      authorId: id(authorId),
+      mentionIds: [],
+      content: "Original comment",
+    };
     mocks.values.updatedComment = {
       _id: id(commentId),
       workspaceId: id(workspaceId),
@@ -145,6 +158,17 @@ describe("PATCH /api/tasks/[taskId]/comments/[commentId]", () => {
     if (allowed) {
       expect(body.data.comment.content).toBe("Updated comment");
       expect(mocks.updateComment).toHaveBeenCalled();
+      const [activity] = mocks.recordTaskActivity.mock.calls[0] ?? [];
+      expect(activity).toMatchObject({
+        context: mocks.values.context,
+        projectId: mocks.values.project._id,
+        taskId: mocks.values.task._id,
+        type: "comment_updated",
+        changes: expect.arrayContaining([
+          { field: "commentId", from: null, to: mocks.values.updatedComment._id },
+          { field: "content", from: "Original comment", to: "Updated comment" },
+        ]),
+      });
     } else {
       expect(body.error.code).toBe("FORBIDDEN");
       expect(mocks.updateComment).not.toHaveBeenCalled();

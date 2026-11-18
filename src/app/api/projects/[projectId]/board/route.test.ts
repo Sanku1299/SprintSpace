@@ -97,6 +97,9 @@ const mocks = vi.hoisted(() => {
     }),
     findMember: vi.fn(() => membershipQuery),
     startSession: vi.fn(async () => session),
+    recordTaskActivity: vi.fn(async (_activity: Record<string, unknown>) => {
+      void _activity;
+    }),
   };
 });
 
@@ -118,7 +121,7 @@ vi.mock("@/lib/tasks/task-project-access", () => ({
   getAccessibleTaskProject: mocks.getAccess,
 }));
 vi.mock("@/lib/tasks/task-activity", () => ({
-  recordTaskActivity: vi.fn(async () => undefined),
+  recordTaskActivity: mocks.recordTaskActivity,
 }));
 vi.mock("@/models/Project", () => ({ Project: { updateOne: mocks.updateProject } }));
 vi.mock("@/models/ProjectMember", () => ({ ProjectMember: { findOne: mocks.findMember } }));
@@ -195,6 +198,7 @@ describe("/api/projects/[projectId]/board", () => {
     mocks.findMember.mockClear();
     mocks.session.withTransaction.mockClear();
     mocks.session.endSession.mockClear();
+    mocks.recordTaskActivity.mockClear();
   });
 
   it("persists a full lane reorder in one transaction batch", async () => {
@@ -218,6 +222,18 @@ describe("/api/projects/[projectId]/board", () => {
     expect(mocks.session.withTransaction).toHaveBeenCalledOnce();
     expect(mocks.bulkWrite).toHaveBeenCalledOnce();
     expect(mocks.updateTask).not.toHaveBeenCalled();
+    const [activity] = mocks.recordTaskActivity.mock.calls[0] ?? [];
+    expect(activity).toMatchObject({
+      context: mocks.values.context,
+      type: "task_reordered",
+      changes: [
+        { field: "status", from: "todo", to: "todo" },
+        { field: "position", from: 0, to: 1 },
+      ],
+      session: mocks.session,
+    });
+    expect((activity?.projectId as { toString(): string }).toString()).toBe(projectId);
+    expect((activity?.taskId as { toString(): string }).toString()).toBe(firstId);
   });
 
   it("rejects stale or incomplete lane lists without writing any tasks", async () => {
@@ -259,6 +275,15 @@ describe("/api/projects/[projectId]/board", () => {
       expect.objectContaining({ session: mocks.session }),
     );
     expect(mocks.bulkWrite).not.toHaveBeenCalled();
+    const [activity] = mocks.recordTaskActivity.mock.calls[0] ?? [];
+    expect(activity).toMatchObject({
+      context: mocks.values.context,
+      type: "task_status_changed",
+      changes: [{ field: "status", from: "todo", to: "in_progress" }],
+      session: mocks.session,
+    });
+    expect((activity?.projectId as { toString(): string }).toString()).toBe(projectId);
+    expect((activity?.taskId as { toString(): string }).toString()).toBe(firstId);
   });
 
   it("surfaces a transactional batch failure without reporting success", async () => {
