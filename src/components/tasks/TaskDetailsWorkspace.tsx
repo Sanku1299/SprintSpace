@@ -53,11 +53,20 @@ export function TaskDetailsWorkspace({
   taskId,
   role,
   userId,
+  presentation = "page",
+  onOpenTask,
 }: {
   taskId: string;
   role: CompanyRole;
   userId: string;
+  presentation?: "page" | "panel";
+  onOpenTask?: (taskId: string) => void;
 }) {
+  const ContentRoot = presentation === "panel" ? "div" : "main";
+  const contentClassName =
+    presentation === "panel"
+      ? "mx-auto w-full max-w-none px-4 py-5 sm:px-6 sm:py-7"
+      : "mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-11";
   const [task, setTask] = useState<TaskItem | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
@@ -224,48 +233,66 @@ export function TaskDetailsWorkspace({
 
   if (loading) {
     return (
-      <main className="mx-auto w-full max-w-5xl px-5 py-10 sm:px-8">
+      <ContentRoot
+        className={
+          presentation === "panel"
+            ? "mx-auto w-full max-w-none px-4 py-5 sm:px-6 sm:py-7"
+            : "mx-auto w-full max-w-5xl px-5 py-10 sm:px-8"
+        }
+      >
         <div className="h-8 w-40 animate-pulse rounded bg-slate-200" />
         <div className="mt-5 h-64 animate-pulse rounded-2xl bg-slate-100" />
-      </main>
+      </ContentRoot>
     );
   }
 
   if (!task) {
     return (
-      <main className="mx-auto w-full max-w-3xl px-5 py-16 text-center sm:px-8">
+      <ContentRoot
+        className={
+          presentation === "panel"
+            ? "mx-auto w-full max-w-none px-4 py-12 text-center sm:px-6"
+            : "mx-auto w-full max-w-3xl px-5 py-16 text-center sm:px-8"
+        }
+      >
         <h1 className="text-2xl font-semibold text-slate-950">Task unavailable</h1>
         <p className="mt-2 text-sm text-slate-600">
           {error || "This task may not exist or may not be available to your account."}
         </p>
-        <Link
-          href="/tasks"
-          className="mt-5 inline-flex rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white"
-        >
-          Back to tasks
-        </Link>
-      </main>
+        {presentation === "page" ? (
+          <Link
+            href="/tasks"
+            className="mt-5 inline-flex rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white"
+          >
+            Back to tasks
+          </Link>
+        ) : null}
+      </ContentRoot>
     );
   }
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8 sm:py-11">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link
-          href={`/tasks?projectId=${task.projectId}`}
-          className="text-sm font-medium text-slate-500 transition hover:text-indigo-700"
-        >
-          ← Back to project tasks
-        </Link>
-        <Link
-          href={`/projects/${task.projectId}`}
-          className="text-sm font-semibold text-indigo-700 hover:text-indigo-800"
-        >
-          Open project →
-        </Link>
-      </div>
+    <ContentRoot className={contentClassName}>
+      {presentation === "page" ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            href={`/tasks?projectId=${task.projectId}`}
+            className="text-sm font-medium text-slate-500 transition hover:text-indigo-700"
+          >
+            ← Back to project tasks
+          </Link>
+          <Link
+            href={`/projects/${task.projectId}`}
+            className="text-sm font-semibold text-indigo-700 hover:text-indigo-800"
+          >
+            Open project →
+          </Link>
+        </div>
+      ) : null}
 
-      <div className="mt-5 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div
+        className={`${presentation === "page" ? "mt-5" : ""} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}
+      >
         <div className="bg-gradient-to-r from-indigo-950 via-indigo-900 to-slate-900 px-5 py-7 text-white sm:px-8">
           <div className="flex flex-wrap items-center gap-2">
             <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold">
@@ -467,6 +494,20 @@ export function TaskDetailsWorkspace({
                     <li key={subtask.id}>
                       <Link
                         href={`/tasks/${subtask.id}`}
+                        onClick={(event) => {
+                          if (
+                            !onOpenTask ||
+                            event.button !== 0 ||
+                            event.metaKey ||
+                            event.ctrlKey ||
+                            event.shiftKey ||
+                            event.altKey
+                          ) {
+                            return;
+                          }
+                          event.preventDefault();
+                          onOpenTask(subtask.id);
+                        }}
                         className="flex flex-col gap-2 px-4 py-3 transition hover:bg-slate-50 sm:flex-row sm:items-center sm:justify-between"
                       >
                         <span className="font-medium text-slate-800">{subtask.title}</span>
@@ -544,7 +585,7 @@ export function TaskDetailsWorkspace({
           </aside>
         </div>
       </div>
-    </main>
+    </ContentRoot>
   );
 }
 

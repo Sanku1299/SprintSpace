@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import type { ReactNode } from "react";
 import { CollisionPriority } from "@dnd-kit/abstract";
 import { DragDropProvider, useDroppable, type DragEndEvent } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 
 import { TASK_PRIORITIES, TASK_STATUSES } from "@/lib/tasks/task-constants";
+import { TaskDetailsDrawer } from "@/components/tasks/TaskDetailsDrawer";
 
 type Project = { id: string; name: string; key: string; projectManagerId: string };
 type TaskItem = {
@@ -135,6 +136,7 @@ export function ProjectBoardWorkspace({
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [assigneeFilter, setAssigneeFilter] = useState("all");
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -415,6 +417,7 @@ export function ProjectBoardWorkspace({
                     index={index}
                     assignee={membersById.get(task.assigneeId ?? "")}
                     disabled={filtersActive}
+                    onOpenTask={setSelectedTaskId}
                   />
                 ))}
               </BoardColumn>
@@ -422,6 +425,15 @@ export function ProjectBoardWorkspace({
           })}
         </div>
       </DragDropProvider>
+      {selectedTaskId ? (
+        <TaskDetailsDrawer
+          taskId={selectedTaskId}
+          role={role}
+          userId={userId}
+          onClose={() => setSelectedTaskId(null)}
+          onOpenTask={setSelectedTaskId}
+        />
+      ) : null}
     </main>
   );
 }
@@ -482,11 +494,13 @@ function TaskCard({
   index,
   assignee,
   disabled,
+  onOpenTask,
 }: {
   task: TaskItem;
   index: number;
   assignee?: Member;
   disabled: boolean;
+  onOpenTask: (taskId: string) => void;
 }) {
   const { ref, handleRef, isDragging } = useSortable({
     id: task.id,
@@ -504,7 +518,11 @@ function TaskCard({
       className={`rounded-xl border border-slate-200 bg-white p-3.5 shadow-sm transition hover:border-indigo-200 hover:shadow-md ${isDragging ? "opacity-50" : ""}`}
     >
       <div className="flex items-start gap-2">
-        <Link href={`/tasks/${task.id}`} className="min-w-0 flex-1">
+        <Link
+          href={`/tasks/${task.id}`}
+          onClick={(event) => openTaskDetails(event, task.id, onOpenTask)}
+          className="min-w-0 flex-1"
+        >
           <span className="flex items-start justify-between gap-2">
             <span className="text-sm font-semibold leading-5 text-slate-900">{task.title}</span>
             <span
@@ -524,7 +542,11 @@ function TaskCard({
           <span aria-hidden="true">⠿</span>
         </button>
       </div>
-      <Link href={`/tasks/${task.id}`} className="block">
+      <Link
+        href={`/tasks/${task.id}`}
+        onClick={(event) => openTaskDetails(event, task.id, onOpenTask)}
+        className="block"
+      >
         {task.description ? (
           <span className="mt-2 line-clamp-2 block text-xs leading-5 text-slate-500">
             {task.description}
@@ -575,6 +597,19 @@ function TaskCard({
       </Link>
     </article>
   );
+}
+
+function openTaskDetails(
+  event: MouseEvent<HTMLAnchorElement>,
+  taskId: string,
+  onOpenTask: (taskId: string) => void,
+) {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+    return;
+  }
+
+  event.preventDefault();
+  onOpenTask(taskId);
 }
 
 const filterInputClass =
