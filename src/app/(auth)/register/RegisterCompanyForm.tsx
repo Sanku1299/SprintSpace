@@ -24,7 +24,15 @@ export function RegisterCompanyForm() {
           password: form.get("password"),
         }),
       });
-      const payload = await response.json();
+      const responseText = await response.text();
+      let payload: { error?: { message?: string } };
+      try {
+        payload = JSON.parse(responseText) as { error?: { message?: string } };
+      } catch {
+        throw new Error(
+          "The server returned an invalid response. Check the development server and database connection, then try again.",
+        );
+      }
       if (!response.ok)
         throw new Error(payload.error?.message ?? "Could not create your workspace.");
       setComplete(true);

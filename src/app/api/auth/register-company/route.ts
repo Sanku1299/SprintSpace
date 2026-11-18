@@ -54,14 +54,17 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const { workspaceName, name, email, password } = parsed.data;
-  const passwordHash = await hashPassword(password);
-  const userId = new mongoose.Types.ObjectId();
-  const workspaceId = new mongoose.Types.ObjectId();
-  const session = await (await connectToDatabase()).startSession();
+  let session: mongoose.ClientSession | undefined;
 
   try {
-    await session.withTransaction(async () => {
-      const existingUser = await User.findOne({ email }).select("_id").session(session);
+    const passwordHash = await hashPassword(password);
+    const userId = new mongoose.Types.ObjectId();
+    const workspaceId = new mongoose.Types.ObjectId();
+    const activeSession = await (await connectToDatabase()).startSession();
+    session = activeSession;
+
+    await activeSession.withTransaction(async () => {
+      const existingUser = await User.findOne({ email }).select("_id").session(activeSession);
 
       if (existingUser) {
         throw new EmailAlreadyRegisteredError();
@@ -76,7 +79,7 @@ export async function POST(request: Request): Promise<Response> {
             createdBy: userId,
           },
         ],
-        { session },
+        { session: activeSession },
       );
 
       await User.create(
@@ -90,7 +93,7 @@ export async function POST(request: Request): Promise<Response> {
             role: "admin",
           },
         ],
-        { session },
+        { session: activeSession },
       );
     });
 
@@ -129,7 +132,7 @@ export async function POST(request: Request): Promise<Response> {
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   } finally {
-    await session.endSession();
+    await session?.endSession();
   }
 }
 
