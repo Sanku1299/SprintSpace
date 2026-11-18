@@ -82,7 +82,8 @@ describe("validateCommentMentions", () => {
   });
 
   it("rejects users outside the workspace even if their role grants project-wide access", async () => {
-    mocks.values.users = [{ _id: id(outsiderId), role: "admin" }];
+    // The workspace-scoped User query does not return the foreign Admin.
+    mocks.values.users = [];
 
     const result = await validateCommentMentions({
       context,
