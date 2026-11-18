@@ -55,16 +55,29 @@ export async function validateTaskReferences({
   }
 
   if (parentTaskId) {
-    if (taskId && parentTaskId === taskId) {
-      return "A task cannot be its own parent.";
-    }
+    const normalizedTaskId = taskId?.toLowerCase();
+    let currentParentId: string | undefined = parentTaskId.toLowerCase();
+    const visitedParentIds = new Set<string>();
 
-    const parentTask = await Task.findOne(
-      workspaceScopedFilter(context, { _id: parentTaskId, projectId }),
-    ).select("_id");
+    while (currentParentId) {
+      if (normalizedTaskId && currentParentId === normalizedTaskId) {
+        return "A task cannot be its own parent.";
+      }
 
-    if (!parentTask) {
-      return "Parent task must belong to this project and workspace.";
+      if (visitedParentIds.has(currentParentId)) {
+        return "Parent task hierarchy cannot contain cycles.";
+      }
+      visitedParentIds.add(currentParentId);
+
+      const parentTaskResult = (await Task.findOne(
+        workspaceScopedFilter(context, { _id: currentParentId, projectId }),
+      ).select("_id parentTaskId")) as { parentTaskId?: { toString(): string } | null } | null;
+
+      if (!parentTaskResult) {
+        return "Parent task must belong to this project and workspace.";
+      }
+
+      currentParentId = parentTaskResult.parentTaskId?.toString().toLowerCase();
     }
   }
 
