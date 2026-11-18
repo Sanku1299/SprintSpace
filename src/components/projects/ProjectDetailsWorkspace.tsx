@@ -400,6 +400,12 @@ export function ProjectDetailsWorkspace({
                 </section>
               </div>
               <div className="mt-5 flex flex-wrap gap-3">
+                <Link
+                  href={`/tasks?projectId=${project.id}`}
+                  className="rounded-lg bg-indigo-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-800"
+                >
+                  View project tasks
+                </Link>
                 <button
                   type="button"
                   onClick={() => setTab("members")}

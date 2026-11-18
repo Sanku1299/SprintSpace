@@ -27,6 +27,12 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
             >
               Projects
             </Link>
+            <Link
+              href="/tasks"
+              className="text-sm font-medium text-slate-600 transition hover:text-indigo-700"
+            >
+              Tasks
+            </Link>
             {hasCompanyRole(user, "admin") ? (
               <Link
                 href="/employees"
