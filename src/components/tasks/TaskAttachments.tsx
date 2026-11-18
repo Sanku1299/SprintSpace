@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ALLOWED_ATTACHMENT_MIME_TYPES, MAX_ATTACHMENT_SIZE } from "@/lib/storage/attachment-types";
 
@@ -53,6 +53,16 @@ export function TaskAttachments({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const previewDialogRef = useRef<HTMLDialogElement>(null);
+  const previewCloseButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const dialog = previewDialogRef.current;
+    if (!preview || !dialog || dialog.open) return;
+
+    dialog.showModal();
+    previewCloseButtonRef.current?.focus();
+  }, [preview]);
 
   const fetchAttachments = useCallback(async () => {
     const response = await fetch(`/api/attachments?taskId=${encodeURIComponent(taskId)}`, {
@@ -308,50 +318,49 @@ export function TaskAttachments({
       )}
 
       {preview ? (
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/70 p-4"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setPreview(null);
+        <dialog
+          ref={previewDialogRef}
+          aria-labelledby="attachment-preview-title"
+          onClose={() => setPreview(null)}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) previewDialogRef.current?.close();
           }}
+          className="fixed inset-0 m-auto flex max-h-[92vh] w-[calc(100%-2rem)] max-w-5xl flex-col overflow-hidden rounded-2xl bg-white p-0 shadow-2xl backdrop:bg-slate-950/70"
         >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Preview ${preview.name}`}
-            className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
-          >
-            <header className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3">
-              <h3 className="min-w-0 truncate text-sm font-semibold text-slate-900">
-                {preview.name}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setPreview(null)}
-                className="rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"
-              >
-                Close
-              </button>
-            </header>
-            <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-slate-100 p-3 sm:p-6">
-              {preview.mimeType.startsWith("image/") ? (
-                // The signed URL returns the original, validated MIME type.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={preview.url}
-                  alt={preview.name}
-                  className="max-h-[76vh] max-w-full object-contain"
-                />
-              ) : (
-                <iframe
-                  src={preview.url}
-                  title={`Preview ${preview.name}`}
-                  className="h-[76vh] w-full rounded-lg bg-white"
-                />
-              )}
-            </div>
-          </section>
-        </div>
+          <header className="flex items-center justify-between gap-4 border-b border-slate-200 px-4 py-3">
+            <h3
+              id="attachment-preview-title"
+              className="min-w-0 truncate text-sm font-semibold text-slate-900"
+            >
+              {preview.name}
+            </h3>
+            <button
+              ref={previewCloseButtonRef}
+              type="button"
+              onClick={() => previewDialogRef.current?.close()}
+              className="rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+            >
+              Close
+            </button>
+          </header>
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-slate-100 p-3 sm:p-6">
+            {preview.mimeType.startsWith("image/") ? (
+              // The signed URL returns the original, validated MIME type.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={preview.url}
+                alt={preview.name}
+                className="max-h-[76vh] max-w-full object-contain"
+              />
+            ) : (
+              <iframe
+                src={preview.url}
+                title={`Preview ${preview.name}`}
+                className="h-[76vh] w-full rounded-lg bg-white"
+              />
+            )}
+          </div>
+        </dialog>
       ) : null}
     </section>
   );
