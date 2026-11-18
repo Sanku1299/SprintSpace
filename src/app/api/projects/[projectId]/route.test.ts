@@ -17,11 +17,14 @@ const mocks = vi.hoisted(() => {
     updateError: null,
   };
 
-  function selectQuery(value: unknown) {
+  function selectQuery(value: unknown, error: unknown = null) {
     const selected = {
-      lean: vi.fn(async () => value),
+      lean: vi.fn(async () => {
+        if (error) throw error;
+        return value;
+      }),
       then: (resolve: (result: unknown) => unknown, reject?: (error: unknown) => unknown) =>
-        Promise.resolve(value).then(resolve, reject),
+        (error ? Promise.reject(error) : Promise.resolve(value)).then(resolve, reject),
     };
     return { select: vi.fn(() => selected) };
   }
@@ -39,8 +42,8 @@ const mocks = vi.hoisted(() => {
       void filter;
       void update;
       void options;
-      if (values.updateError) return Promise.reject(values.updateError);
-      return selectQuery(values.updatedProject);
+      // Mongoose exposes `.select()` before the query is awaited/rejected.
+      return selectQuery(values.updatedProject, values.updateError);
     }),
     findMembership: vi.fn((filter: Record<string, unknown>) => {
       void filter;
