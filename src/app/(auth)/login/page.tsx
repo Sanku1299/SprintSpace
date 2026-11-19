@@ -1,16 +1,32 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
 import { getAuthenticatedUser } from "@/lib/auth/current-user";
 import { LoginForm } from "./LoginForm";
 
-export default async function LoginPage() {
+export default function LoginPage() {
+  return (
+    <>
+      <Suspense fallback={null}>
+        <RedirectAuthenticatedUser />
+      </Suspense>
+      <LoginPageContent />
+    </>
+  );
+}
+
+async function RedirectAuthenticatedUser() {
   const user = await getAuthenticatedUser();
 
   if (user) {
     redirect("/dashboard");
   }
 
+  return null;
+}
+
+function LoginPageContent() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-5 py-12">
       <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">

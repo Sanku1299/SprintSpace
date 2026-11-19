@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import type { ReactNode } from "react";
 
 import { SignOutButton } from "@/components/auth/SignOutButton";
@@ -7,7 +8,21 @@ import { NotificationInbox } from "@/components/notifications/NotificationInbox"
 import { hasCompanyRole } from "@/lib/auth/company-role";
 import { getAuthenticatedUser } from "@/lib/auth/current-user";
 
-export default async function AuthenticatedLayout({ children }: { children: ReactNode }) {
+export default function AuthenticatedLayout({ children }: { children: ReactNode }) {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-slate-50 px-6 py-10 text-slate-600" aria-busy="true">
+          <div className="mx-auto max-w-6xl">Loading your workspace…</div>
+        </main>
+      }
+    >
+      <AuthenticatedContent>{children}</AuthenticatedContent>
+    </Suspense>
+  );
+}
+
+async function AuthenticatedContent({ children }: { children: ReactNode }) {
   const user = await getAuthenticatedUser();
 
   if (!user) {

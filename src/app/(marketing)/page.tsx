@@ -1,8 +1,23 @@
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { auth } from "../../../auth";
 
-export default async function HomePage() {
+export default function HomePage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600">
+          <p>Loading SprintSpace…</p>
+        </main>
+      }
+    >
+      <HomePageContent />
+    </Suspense>
+  );
+}
+
+async function HomePageContent() {
   const session = await auth();
 
   return (
