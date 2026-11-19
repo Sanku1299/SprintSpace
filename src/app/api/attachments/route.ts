@@ -17,8 +17,6 @@ import { getAccessibleTaskProject } from "@/lib/tasks/task-project-access";
 import { Attachment } from "@/models/Attachment";
 import { Task } from "@/models/Task";
 
-export const runtime = "nodejs";
-
 function errorResponse(status: number, code: string, message: string): Response {
   return NextResponse.json(
     { success: false, error: { code, message } },

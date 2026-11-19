@@ -15,8 +15,6 @@ import { getObjectStorageClient } from "@/lib/storage/s3-client";
 import { getAccessibleTaskProject } from "@/lib/tasks/task-project-access";
 import { Task } from "@/models/Task";
 
-export const runtime = "nodejs";
-
 function errorResponse(status: number, code: string, message: string): Response {
   return NextResponse.json(
     { success: false, error: { code, message } },

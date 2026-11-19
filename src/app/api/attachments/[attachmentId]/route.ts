@@ -13,8 +13,6 @@ import { getAccessibleTaskProject } from "@/lib/tasks/task-project-access";
 import { Attachment } from "@/models/Attachment";
 import { Task } from "@/models/Task";
 
-export const runtime = "nodejs";
-
 type RouteContext = { params: Promise<{ attachmentId: string }> };
 
 function errorResponse(status: number, code: string, message: string): Response {
