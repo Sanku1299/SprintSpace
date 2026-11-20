@@ -19,6 +19,7 @@ export function LoginForm() {
           id="email"
           name="email"
           type="email"
+          placeholder="you@example.com"
           autoComplete="email"
           required
           maxLength={254}
@@ -34,6 +35,7 @@ export function LoginForm() {
           id="password"
           name="password"
           type="password"
+          placeholder="Enter your password"
           autoComplete="current-password"
           required
           maxLength={128}
