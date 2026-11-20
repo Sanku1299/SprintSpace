@@ -6,7 +6,13 @@ import { loginAction, type LoginState } from "./actions";
 
 const initialState: LoginState = {};
 
-export function LoginForm() {
+export function LoginForm({
+  initialEmail,
+  initialPassword,
+}: {
+  initialEmail?: string;
+  initialPassword?: string;
+}) {
   const [state, action, pending] = useActionState(loginAction, initialState);
 
   return (
@@ -19,6 +25,7 @@ export function LoginForm() {
           id="email"
           name="email"
           type="email"
+          defaultValue={initialEmail}
           autoComplete="email"
           required
           maxLength={254}
@@ -34,6 +41,7 @@ export function LoginForm() {
           id="password"
           name="password"
           type="password"
+          defaultValue={initialPassword}
           autoComplete="current-password"
           required
           maxLength={128}

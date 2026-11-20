@@ -29,6 +29,16 @@ async function RedirectAuthenticatedUser() {
 }
 
 function LoginPageContent() {
+  const localLoginDefaults =
+    process.env.NODE_ENV === "development" &&
+    process.env.DEV_LOGIN_EMAIL &&
+    process.env.DEV_LOGIN_PASSWORD
+      ? {
+          email: process.env.DEV_LOGIN_EMAIL,
+          password: process.env.DEV_LOGIN_PASSWORD,
+        }
+      : undefined;
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-5 py-12">
       <section className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-sm sm:p-10">
@@ -39,7 +49,10 @@ function LoginPageContent() {
         <p className="mt-2 text-sm leading-6 text-slate-600">
           Sign in to continue to your workspace.
         </p>
-        <LoginForm />
+        <LoginForm
+          initialEmail={localLoginDefaults?.email}
+          initialPassword={localLoginDefaults?.password}
+        />
         <p className="mt-6 text-center text-sm text-slate-600">
           New to SprintSpace?{" "}
           <Link href="/register" className="font-semibold text-indigo-700 hover:text-indigo-900">
