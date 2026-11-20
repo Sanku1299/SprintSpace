@@ -29,13 +29,12 @@ async function RedirectAuthenticatedUser() {
 }
 
 function LoginPageContent() {
-  const localLoginDefaults =
-    process.env.NODE_ENV === "development" &&
-    process.env.DEV_LOGIN_EMAIL &&
-    process.env.DEV_LOGIN_PASSWORD
+  const demoLoginDefaults =
+    process.env.DEMO_LOGIN_EMAIL &&
+    process.env.DEMO_LOGIN_PASSWORD
       ? {
-          email: process.env.DEV_LOGIN_EMAIL,
-          password: process.env.DEV_LOGIN_PASSWORD,
+          email: process.env.DEMO_LOGIN_EMAIL,
+          password: process.env.DEMO_LOGIN_PASSWORD,
         }
       : undefined;
 
@@ -50,8 +49,8 @@ function LoginPageContent() {
           Sign in to continue to your workspace.
         </p>
         <LoginForm
-          initialEmail={localLoginDefaults?.email}
-          initialPassword={localLoginDefaults?.password}
+          initialEmail={demoLoginDefaults?.email}
+          initialPassword={demoLoginDefaults?.password}
         />
         <p className="mt-6 text-center text-sm text-slate-600">
           New to SprintSpace?{" "}

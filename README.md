@@ -29,6 +29,11 @@ Required production settings:
   origin. For an S3-compatible provider, set its HTTPS endpoint and paired
   access credentials.
 
+For a disposable demo deployment only, optionally set `DEMO_LOGIN_EMAIL` and
+`DEMO_LOGIN_PASSWORD` to prefill the sign-in form. The values are rendered in
+the page for every visitor, so use a demo account and database with no real or
+sensitive data. These variables are not required for other deployments.
+
 ## Deploying to Vercel
 
 1. Import the repository into Vercel and select the `dev` branch for preview
