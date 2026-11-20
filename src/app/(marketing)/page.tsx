@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { auth } from "../../../auth";
@@ -18,6 +19,7 @@ export default function HomePage() {
 }
 
 async function HomePageContent() {
+  await connection();
   const session = await auth();
 
   return (

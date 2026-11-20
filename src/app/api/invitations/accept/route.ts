@@ -19,6 +19,53 @@ function errorResponse(status: number, code: string, message: string): Response 
   );
 }
 
+export async function GET(request: Request): Promise<Response> {
+  const token = new URL(request.url).searchParams.get("token");
+
+  if (!token || token.length < 32 || token.length > 128 || !/^[A-Za-z0-9_-]+$/.test(token)) {
+    return errorResponse(400, "INVALID_INVITATION", "This invitation link is invalid.");
+  }
+
+  try {
+    await connectToDatabase();
+    const tokenHash = createHash("sha256").update(token).digest("hex");
+    const invitation = await Invitation.findOne({
+      tokenHash,
+      status: "pending",
+      expiresAt: { $gt: new Date() },
+    }).select("email name role expiresAt");
+
+    if (!invitation) {
+      return errorResponse(
+        410,
+        "INVITATION_UNAVAILABLE",
+        "This invitation is invalid, expired, revoked, or already accepted.",
+      );
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        data: {
+          invitation: {
+            email: invitation.email,
+            name: invitation.name,
+            role: invitation.role,
+            expiresAt: invitation.expiresAt,
+          },
+        },
+      },
+      { headers: { "Cache-Control": "no-store" } },
+    );
+  } catch {
+    return errorResponse(
+      503,
+      "SERVICE_UNAVAILABLE",
+      "Invitation service is temporarily unavailable.",
+    );
+  }
+}
+
 export async function POST(request: Request): Promise<Response> {
   let body: unknown;
 

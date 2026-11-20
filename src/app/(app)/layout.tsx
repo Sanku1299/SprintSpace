@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import type { ReactNode } from "react";
 
@@ -23,6 +24,7 @@ export default function AuthenticatedLayout({ children }: { children: ReactNode 
 }
 
 async function AuthenticatedContent({ children }: { children: ReactNode }) {
+  await connection();
   const user = await getAuthenticatedUser();
 
   if (!user) {

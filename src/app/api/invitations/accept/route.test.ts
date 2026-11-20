@@ -23,7 +23,10 @@ const mocks = vi.hoisted(() => {
     values,
     connect: vi.fn(async () => ({ startSession: vi.fn(async () => session) })),
     hashPassword: vi.fn(async () => "scrypt$v1$salt$hash"),
-    findInvitation: vi.fn(() => ({ session: vi.fn(async () => invitation) })),
+    findInvitation: vi.fn((_filter: Record<string, unknown>) => ({
+      session: vi.fn(async () => invitation),
+      select: vi.fn(async () => invitation),
+    })),
     claimInvitation: vi.fn(async () => invitation),
     findUser: vi.fn(() => ({ select: () => ({ session: async () => values.existingUser }) })),
     createUser: vi.fn(async (_documents: Record<string, unknown>[], _options?: unknown) => {
@@ -41,9 +44,15 @@ vi.mock("@/models/Invitation", () => ({
 }));
 vi.mock("@/models/User", () => ({ User: { findOne: mocks.findUser, create: mocks.createUser } }));
 
-import { POST } from "./route";
+import { GET, POST } from "./route";
 
 const token = "a-valid-invitation-token-with-enough-entropy";
+
+function invitationRequest(tokenValue: string): Request {
+  return new Request(
+    `http://localhost/api/invitations/accept?token=${encodeURIComponent(tokenValue)}`,
+  );
+}
 
 function request(body: unknown): Request {
   return new Request("http://localhost/api/invitations/accept", {
@@ -102,5 +111,36 @@ describe("POST /api/invitations/accept", () => {
     expect(response.status).toBe(409);
     expect(body.error.code).toBe("ACCOUNT_ALREADY_EXISTS");
     expect(JSON.stringify(body)).not.toContain("keyPattern");
+  });
+});
+
+describe("GET /api/invitations/accept", () => {
+  it("returns the saved role and email for a valid invitation without exposing the token hash", async () => {
+    const response = await GET(invitationRequest(token));
+    const body = await response.json();
+    const [filter] = mocks.findInvitation.mock.calls.at(-1) ?? [];
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(body.data.invitation).toMatchObject({
+      email: "person@example.com",
+      name: "Pat Person",
+      role: "developer",
+    });
+    expect(body.data.invitation).not.toHaveProperty("tokenHash");
+    expect(filter).toMatchObject({
+      tokenHash: expect.stringMatching(/^[a-f\d]{64}$/),
+      status: "pending",
+    });
+    expect(filter?.expiresAt).toHaveProperty("$gt");
+  });
+
+  it("rejects malformed tokens before querying invitations", async () => {
+    mocks.findInvitation.mockClear();
+
+    const response = await GET(invitationRequest("invalid"));
+
+    expect(response.status).toBe(400);
+    expect(mocks.findInvitation).not.toHaveBeenCalled();
   });
 });

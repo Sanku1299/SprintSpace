@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 
@@ -17,6 +18,7 @@ export default function LoginPage() {
 }
 
 async function RedirectAuthenticatedUser() {
+  await connection();
   const user = await getAuthenticatedUser();
 
   if (user) {

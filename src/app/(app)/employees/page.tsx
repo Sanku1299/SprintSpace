@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
 import { hasCompanyRole } from "@/lib/auth/company-role";
 import { listWorkspaceMembers } from "@/lib/members/workspace-members";
+import { InviteMemberForm } from "@/components/members/InviteMemberForm";
 import type { CompanyRole } from "@/models/User";
 
 const ROLE_LABELS: Record<CompanyRole, string> = {
@@ -54,6 +55,8 @@ export default async function EmployeesPage() {
           </p>
         </div>
       </div>
+
+      <InviteMemberForm />
 
       <section className="mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         {members.length === 0 ? (
