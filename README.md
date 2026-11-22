@@ -36,15 +36,14 @@ sensitive data. These variables are not required for other deployments.
 
 ### Demo sign-in
 
-Use these credentials for the pre-provisioned demo Admin account:
+Use these credentials for the pre-provisioned demo accounts:
 
-- Email: `test@gmail.com`
-- Password: `Test@1234567`
+- **Admin** — `test@gmail.com` — Password: `Test@1234567`
+- **Demo Developer** — `demo.developer@example.com` — Password: `SprintSpace-XuP9P4LMZPeZ`
+- **Demo Designer** — `demo.designer@example.com` — Password: `SprintSpace-RlzMpfQVsKF1`
 
-This account must exist in the demo database. Developer and Designer accounts
-are workspace members rather than built-in demo accounts; they set their own
-passwords when accepting an invitation. Do not reuse these demo credentials for
-real users or data.
+These accounts must exist in the demo database. Do not reuse these credentials
+for real users or data.
 
 ## Deploying to Vercel
 
