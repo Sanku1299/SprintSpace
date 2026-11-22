@@ -34,6 +34,18 @@ For a disposable demo deployment only, optionally set `DEMO_LOGIN_EMAIL` and
 the page for every visitor, so use a demo account and database with no real or
 sensitive data. These variables are not required for other deployments.
 
+### Demo sign-in
+
+Use these credentials for the pre-provisioned demo Admin account:
+
+- Email: `test@gmail.com`
+- Password: `Test@1234567`
+
+This account must exist in the demo database. Developer and Designer accounts
+are workspace members rather than built-in demo accounts; they set their own
+passwords when accepting an invitation. Do not reuse these demo credentials for
+real users or data.
+
 ## Deploying to Vercel
 
 1. Import the repository into Vercel and select the `dev` branch for preview

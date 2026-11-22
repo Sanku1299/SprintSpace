@@ -87,17 +87,51 @@ export async function GET(request: Request, { params }: RouteContext): Promise<R
       return errorResponse(404, "NOT_FOUND", "Project not found.");
     }
 
+    const url = new URL(request.url);
+    const includeAvailable = url.searchParams.get("available") === "true";
+
+    if (includeAvailable && !hasCompanyRole(context, "admin", "project_manager")) {
+      return errorResponse(403, "FORBIDDEN", "You cannot manage project members.");
+    }
+
     const memberships = await ProjectMember.find(
       workspaceScopedFilter(context, { projectId: project._id }),
     )
       .select("userId addedBy createdAt")
       .sort({ createdAt: 1, _id: 1 })
       .lean();
-    const users = await User.find(
-      workspaceScopedFilter(context, { _id: { $in: memberships.map(({ userId }) => userId) } }),
-    )
-      .select("_id name email role status avatarUrl")
-      .lean();
+
+    const mentionableIds = [...memberships.map(({ userId }) => userId), project.projectManagerId];
+    const [users, mentionableUsers, availableUsers] = await Promise.all([
+      User.find(
+        workspaceScopedFilter(context, {
+          _id: { $in: memberships.map(({ userId }) => userId) },
+        }),
+      )
+        .select("_id name email role status avatarUrl")
+        .lean(),
+      User.find(
+        workspaceScopedFilter(context, {
+          status: "active",
+          $or: [{ _id: { $in: mentionableIds } }, { role: "admin" }],
+        }),
+      )
+        .select("_id name role avatarUrl")
+        .sort({ name: 1, _id: 1 })
+        .lean(),
+      includeAvailable
+        ? User.find(
+            workspaceScopedFilter(context, {
+              role: { $in: ["developer", "designer"] },
+              status: "active",
+              _id: { $nin: memberships.map(({ userId }) => userId) },
+            }),
+          )
+            .select("_id name email role status avatarUrl")
+            .sort({ name: 1, _id: 1 })
+            .lean()
+        : Promise.resolve([]),
+    ]);
     const usersById = new Map(users.map((user) => [user._id.toString(), user]));
     const members = memberships.flatMap((membership) => {
       const user = usersById.get(membership.userId.toString());
@@ -119,16 +153,6 @@ export async function GET(request: Request, { params }: RouteContext): Promise<R
         },
       ];
     });
-    const mentionableIds = [...memberships.map(({ userId }) => userId), project.projectManagerId];
-    const mentionableUsers = await User.find(
-      workspaceScopedFilter(context, {
-        status: "active",
-        $or: [{ _id: { $in: mentionableIds } }, { role: "admin" }],
-      }),
-    )
-      .select("_id name role avatarUrl")
-      .sort({ name: 1, _id: 1 })
-      .lean();
     const mentionableMembers = mentionableUsers.map((user) => ({
       id: user._id.toString(),
       name: user.name,
@@ -136,25 +160,7 @@ export async function GET(request: Request, { params }: RouteContext): Promise<R
       avatarUrl: user.avatarUrl ?? null,
     }));
 
-    const url = new URL(request.url);
-    const includeAvailable = url.searchParams.get("available") === "true";
-
     if (includeAvailable) {
-      if (!hasCompanyRole(context, "admin", "project_manager")) {
-        return errorResponse(403, "FORBIDDEN", "You cannot manage project members.");
-      }
-
-      const availableUsers = await User.find(
-        workspaceScopedFilter(context, {
-          role: { $in: ["developer", "designer"] },
-          status: "active",
-          _id: { $nin: memberships.map(({ userId }) => userId) },
-        }),
-      )
-        .select("_id name email role status avatarUrl")
-        .sort({ name: 1, _id: 1 })
-        .lean();
-
       return NextResponse.json(
         {
           success: true,

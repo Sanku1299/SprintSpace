@@ -1,22 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { PROJECT_STATUSES } from "@/lib/projects/project-constants";
+import type { ProjectListItem } from "@/lib/projects/project-types";
 import type { CompanyRole } from "@/models/User";
-
-type Project = {
-  id: string;
-  name: string;
-  key: string;
-  description: string;
-  status: string;
-  priority: string;
-  projectManagerId: string;
-  startDate: string | null;
-  endDate: string | null;
-};
 
 const STATUS_LABELS: Record<string, string> = {
   planning: "Planning",
@@ -38,37 +27,20 @@ function pretty(value: string): string {
   return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export function ProjectsWorkspace({ role }: { role: CompanyRole }) {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+export function ProjectsWorkspace({
+  role,
+  initialProjects,
+  initialError,
+}: {
+  role: CompanyRole;
+  initialProjects: ProjectListItem[];
+  initialError: string;
+}) {
+  const projects = initialProjects;
+  const error = initialError;
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const canCreate = role === "admin" || role === "project_manager";
-
-  useEffect(() => {
-    let active = true;
-
-    fetch("/api/projects", { cache: "no-store" })
-      .then(async (response) => {
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error?.message ?? "Could not load projects.");
-        return payload.data.projects as Project[];
-      })
-      .then((items) => {
-        if (active) setProjects(items);
-      })
-      .catch((reason: unknown) => {
-        if (active) setError(reason instanceof Error ? reason.message : "Could not load projects.");
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const visibleProjects = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -110,8 +82,8 @@ export function ProjectsWorkspace({ role }: { role: CompanyRole }) {
       </div>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-3">
-        <SummaryCard label="Visible projects" value={loading ? "—" : String(projects.length)} />
-        <SummaryCard label="Active" value={loading ? "—" : String(activeCount)} accent="emerald" />
+        <SummaryCard label="Visible projects" value={String(projects.length)} />
+        <SummaryCard label="Active" value={String(activeCount)} accent="emerald" />
         <SummaryCard label="Your role" value={pretty(role)} accent="violet" />
       </div>
 
@@ -152,13 +124,7 @@ export function ProjectsWorkspace({ role }: { role: CompanyRole }) {
         </div>
 
         {error ? <InlineError message={error} /> : null}
-        {loading ? (
-          <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
-            {[0, 1, 2].map((item) => (
-              <div key={item} className="h-48 animate-pulse rounded-xl bg-slate-100" />
-            ))}
-          </div>
-        ) : visibleProjects.length === 0 ? (
+        {visibleProjects.length === 0 ? (
           <div className="px-6 py-16 text-center">
             <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-indigo-50 text-xl font-semibold text-indigo-700">
               P

@@ -30,6 +30,10 @@ const WorkspaceSchema = new Schema(
       ref: "User",
       required: true,
     },
+    projectSequence: {
+      type: Number,
+      min: 0,
+    },
   },
   {
     timestamps: true,
@@ -37,6 +41,16 @@ const WorkspaceSchema = new Schema(
 );
 
 export type WorkspaceDocument = InferSchemaType<typeof WorkspaceSchema>;
+
+const cachedWorkspaceModel = mongoose.models.Workspace;
+
+if (
+  process.env.NODE_ENV === "development" &&
+  cachedWorkspaceModel &&
+  !cachedWorkspaceModel.schema.path("projectSequence")
+) {
+  mongoose.deleteModel("Workspace");
+}
 
 export const Workspace =
   mongoose.models.Workspace || mongoose.model<WorkspaceDocument>("Workspace", WorkspaceSchema);

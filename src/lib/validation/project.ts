@@ -29,7 +29,7 @@ function hasValidDateOrder(values: { startDate?: Date | null; endDate?: Date | n
 export const createProjectSchema = z
   .object({
     name: z.string().trim().min(2).max(100),
-    key: z.string().trim().toUpperCase().regex(PROJECT_KEY_PATTERN),
+    key: z.string().trim().toUpperCase().regex(PROJECT_KEY_PATTERN).optional(),
     description: z.string().trim().max(3000).optional(),
     status: z.enum(PROJECT_STATUSES).default("planning"),
     priority: z.enum(PROJECT_PRIORITIES).default("medium"),

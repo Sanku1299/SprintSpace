@@ -109,6 +109,10 @@ export function ProjectDetailsWorkspace({
       setLoading(true);
       setError("");
       try {
+        const managersRequest =
+          role === "admin"
+            ? fetch("/api/members", { cache: "no-store" }).catch(() => null)
+            : null;
         const [projectResponse, memberResponse] = await Promise.all([
           fetch(`/api/projects/${projectId}`, { cache: "no-store" }),
           fetch(
@@ -138,11 +142,13 @@ export function ProjectDetailsWorkspace({
         setEndDate(loadedProject.endDate?.slice(0, 10) ?? "");
         setMembers(memberPayload.data.members as Member[]);
         setAvailableMembers((memberPayload.data.availableMembers ?? []) as Member[]);
+        setLoading(false);
 
-        if (role === "admin") {
-          const managersResponse = await fetch("/api/members", { cache: "no-store" });
-          const managersPayload = await managersResponse.json();
-          if (managersResponse.ok && active) {
+        if (managersRequest) {
+          const managersResponse = await managersRequest;
+          if (managersResponse?.ok) {
+            const managersPayload = await managersResponse.json();
+            if (!active) return;
             setManagers(
               (managersPayload.data.members as Manager[]).filter(
                 (member) =>
@@ -542,12 +548,12 @@ export function ProjectDetailsWorkspace({
                       className={inputClass}
                     />
                   </Field>
-                  <Field label="Project key" required>
+                  <Field label="Project number" required>
                     <input
                       required
-                      minLength={2}
-                      maxLength={10}
-                      pattern="[A-Za-z][A-Za-z0-9]{1,9}"
+                      minLength={1}
+                      maxLength={20}
+                      pattern="([A-Za-z][A-Za-z0-9]{1,9}|[0-9]{1,20})"
                       value={key}
                       onChange={(event) => setKey(event.target.value.toUpperCase())}
                       className={inputClass}

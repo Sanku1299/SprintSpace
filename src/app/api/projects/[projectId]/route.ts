@@ -245,6 +245,10 @@ export async function PATCH(request: Request, { params }: RouteContext): Promise
       );
     }
 
+    if (error instanceof mongoose.Error.ValidationError) {
+      return errorResponse(400, "VALIDATION_ERROR", "One or more project fields are invalid.");
+    }
+
     return errorResponse(503, "SERVICE_UNAVAILABLE", "Project service is temporarily unavailable.");
   }
 }

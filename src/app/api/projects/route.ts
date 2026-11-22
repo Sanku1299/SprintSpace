@@ -2,16 +2,13 @@ import { NextResponse } from "next/server";
 
 import { getWorkspaceContext } from "@/lib/auth/workspace-context";
 import { hasCompanyRole } from "@/lib/auth/company-role";
-import { canAccessProject } from "@/lib/auth/project-access";
 import { workspaceScopedFilter } from "@/lib/auth/workspace-scope";
 import { connectToDatabase } from "@/lib/db/mongoose";
+import { allocateProjectKey } from "@/lib/projects/allocate-project-key";
+import { getWorkspaceProjects } from "@/lib/projects/workspace-projects";
 import { createProjectSchema } from "@/lib/validation/project";
 import { Project } from "@/models/Project";
-import { ProjectMember } from "@/models/ProjectMember";
 import { User } from "@/models/User";
-
-const PROJECT_FIELDS =
-  "_id workspaceId name key description status priority projectManagerId startDate endDate createdAt updatedAt";
 
 function errorResponse(status: number, code: string, message: string): Response {
   return NextResponse.json(
@@ -32,36 +29,6 @@ function isDuplicateProjectKeyError(error: unknown): boolean {
   return "workspaceId" in error.keyPattern && "key" in error.keyPattern;
 }
 
-function toProjectListItem(project: {
-  _id: { toString(): string };
-  workspaceId: { toString(): string };
-  name: string;
-  key: string;
-  description?: string;
-  status: string;
-  priority: string;
-  projectManagerId: { toString(): string };
-  startDate?: Date;
-  endDate?: Date;
-  createdAt: Date;
-  updatedAt: Date;
-}) {
-  return {
-    id: project._id.toString(),
-    workspaceId: project.workspaceId.toString(),
-    name: project.name,
-    key: project.key,
-    description: project.description ?? "",
-    status: project.status,
-    priority: project.priority,
-    projectManagerId: project.projectManagerId.toString(),
-    startDate: project.startDate?.toISOString() ?? null,
-    endDate: project.endDate?.toISOString() ?? null,
-    createdAt: project.createdAt.toISOString(),
-    updatedAt: project.updatedAt.toISOString(),
-  };
-}
-
 export async function GET(): Promise<Response> {
   try {
     const context = await getWorkspaceContext();
@@ -70,41 +37,14 @@ export async function GET(): Promise<Response> {
       return errorResponse(401, "UNAUTHENTICATED", "Sign in to continue.");
     }
 
-    await connectToDatabase();
-    let isProjectMember = false;
-    const projectQuery = Project.find(workspaceScopedFilter(context, {}));
-
-    if (hasCompanyRole(context, "project_manager")) {
-      projectQuery.where("projectManagerId").equals(context.userId);
-    } else if (hasCompanyRole(context, "developer", "designer")) {
-      const memberships = await ProjectMember.find(
-        workspaceScopedFilter(context, { userId: context.userId }),
-      )
-        .select("projectId")
-        .lean();
-      const memberProjectIds = memberships.map((membership) => membership.projectId);
-
-      if (memberProjectIds.length === 0) {
-        return NextResponse.json(
-          { success: true, data: { projects: [] } },
-          { headers: { "Cache-Control": "no-store" } },
-        );
-      }
-
-      isProjectMember = true;
-      projectQuery.where("_id").in(memberProjectIds);
-    } else if (!hasCompanyRole(context, "admin")) {
+    if (!hasCompanyRole(context, "admin", "project_manager", "developer", "designer")) {
       return errorResponse(403, "FORBIDDEN", "You cannot view projects.");
     }
 
-    const projects = await projectQuery.select(PROJECT_FIELDS).sort({ name: 1, key: 1 }).lean();
-
-    const accessibleProjects = projects.filter((project) =>
-      canAccessProject(context, project, isProjectMember),
-    );
+    const projects = await getWorkspaceProjects(context);
 
     return NextResponse.json(
-      { success: true, data: { projects: accessibleProjects.map(toProjectListItem) } },
+      { success: true, data: { projects } },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch {
@@ -174,8 +114,9 @@ export async function POST(request: Request): Promise<Response> {
       );
     }
 
+    const projectKey = parsed.data.key ?? (await allocateProjectKey(context.workspaceId));
     const existingProject = await Project.findOne(
-      workspaceScopedFilter(context, { key: parsed.data.key }),
+      workspaceScopedFilter(context, { key: projectKey }),
     ).select("_id");
 
     if (existingProject) {
@@ -188,6 +129,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const project = await Project.create({
       ...parsed.data,
+      key: projectKey,
       workspaceId: context.workspaceId,
       createdBy: context.userId,
     });

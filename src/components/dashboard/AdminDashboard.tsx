@@ -1,33 +1,23 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useState } from "react";
 
-type Metrics = {
-  members: { total: number; active: number };
-  projects: { total: number; active: number; byStatus: Array<{ status: string; count: number }> };
-  tasks: { total: number; byStatus: Array<{ status: string; count: number }> };
-};
+import {
+  getAdminDashboardMetrics,
+  type AdminDashboardMetrics,
+} from "@/lib/dashboard/admin-metrics";
 
-export function AdminDashboard({ name }: { name: string }) {
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let active = true;
-    void fetch("/api/dashboard/admin", { cache: "no-store" })
-      .then(async (response) => {
-        const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error?.message ?? "Could not load dashboard.");
-        if (active) setMetrics(payload.data as Metrics);
-      })
-      .catch((reason) => {
-        if (active)
-          setError(reason instanceof Error ? reason.message : "Could not load dashboard.");
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+export async function AdminDashboard({
+  name,
+  workspaceId,
+}: {
+  name: string;
+  workspaceId: string;
+}) {
+  let metrics: AdminDashboardMetrics | null = null;
+  try {
+    metrics = await getAdminDashboardMetrics(workspaceId);
+  } catch {
+    metrics = null;
+  }
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10 sm:py-12">
@@ -38,13 +28,10 @@ export function AdminDashboard({ name }: { name: string }) {
         Welcome{name ? `, ${name}` : " back"}.
       </h1>
       <p className="mt-3 text-slate-600">Workspace activity and current workload at a glance.</p>
-      {error ? (
+      {!metrics ? (
         <p role="alert" className="mt-6 rounded-xl bg-rose-50 p-4 text-sm text-rose-700">
-          {error}
+          Dashboard metrics are temporarily unavailable.
         </p>
-      ) : null}
-      {!metrics && !error ? (
-        <p className="mt-8 text-sm text-slate-500">Loading workspace metrics…</p>
       ) : null}
       {metrics ? (
         <>

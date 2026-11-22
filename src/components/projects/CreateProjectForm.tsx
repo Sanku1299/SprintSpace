@@ -28,8 +28,6 @@ export function CreateProjectForm({
 }) {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [key, setKey] = useState("");
-  const [keyEdited, setKeyEdited] = useState(false);
   const [description, setDescription] = useState("");
   const [projectManagerId, setProjectManagerId] = useState(
     role === "project_manager" ? userId : "",
@@ -40,11 +38,6 @@ export function CreateProjectForm({
   const [endDate, setEndDate] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-
-  function updateName(value: string) {
-    setName(value);
-    if (!keyEdited) setKey(generatedKeyFromName(value));
-  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -57,7 +50,6 @@ export function CreateProjectForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
-          key,
           description,
           projectManagerId,
           status,
@@ -120,25 +112,15 @@ export function CreateProjectForm({
               minLength={2}
               maxLength={100}
               value={name}
-              onChange={(event) => updateName(event.target.value)}
+              onChange={(event) => setName(event.target.value)}
               placeholder="Website redesign"
               className={inputClass}
             />
           </Field>
-          <Field label="Project key" required hint="2–10 letters or numbers; starts with a letter.">
-            <input
-              required
-              minLength={2}
-              maxLength={10}
-              pattern="[A-Za-z][A-Za-z0-9]{1,9}"
-              value={key}
-              onChange={(event) => {
-                setKeyEdited(true);
-                setKey(event.target.value.toUpperCase());
-              }}
-              placeholder="WEB"
-              className={inputClass}
-            />
+          <Field label="Project number" hint="Assigned automatically in sequence for this workspace.">
+            <div className={`${inputClass} flex items-center bg-slate-50 text-slate-600`}>
+              1, 2, 3…
+            </div>
           </Field>
           <Field label="Responsible project manager" required>
             {role === "project_manager" ? (
@@ -242,17 +224,6 @@ export function CreateProjectForm({
         </div>
       </form>
     </main>
-  );
-}
-
-function generatedKeyFromName(name: string): string {
-  return (
-    name
-      .trim()
-      .toUpperCase()
-      .match(/[A-Z0-9]+/g)
-      ?.join("")
-      .slice(0, 10) ?? ""
   );
 }
 

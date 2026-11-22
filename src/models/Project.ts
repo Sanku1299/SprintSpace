@@ -23,9 +23,9 @@ const ProjectSchema = new Schema(
       required: true,
       trim: true,
       uppercase: true,
-      minlength: 2,
-      maxlength: 10,
-      match: /^[A-Z][A-Z0-9]{1,9}$/,
+      minlength: 1,
+      maxlength: 20,
+      match: /^(?:[A-Z][A-Z0-9]{1,9}|\d{1,20})$/,
     },
     description: {
       type: String,
@@ -80,6 +80,18 @@ ProjectSchema.index({ workspaceId: 1, status: 1 });
 ProjectSchema.index({ workspaceId: 1, projectManagerId: 1, status: 1 });
 
 export type ProjectDocument = InferSchemaType<typeof ProjectSchema>;
+
+const cachedProjectModel = mongoose.models.Project;
+const cachedKeyMatcher = cachedProjectModel?.schema.path("key")?.options.match;
+const currentKeyMatcher = ProjectSchema.path("key").options.match;
+
+if (
+  process.env.NODE_ENV === "development" &&
+  cachedProjectModel &&
+  String(cachedKeyMatcher) !== String(currentKeyMatcher)
+) {
+  mongoose.deleteModel("Project");
+}
 
 export const Project =
   mongoose.models.Project || mongoose.model<ProjectDocument>("Project", ProjectSchema);
