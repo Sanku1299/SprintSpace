@@ -77,6 +77,7 @@ export function ProjectDetailsWorkspace({
   const [members, setMembers] = useState<Member[]>([]);
   const [availableMembers, setAvailableMembers] = useState<Member[]>([]);
   const [managers, setManagers] = useState<Manager[]>([]);
+  const [assignedManager, setAssignedManager] = useState<{ id: string; name: string } | null>(null);
   const [selectedMember, setSelectedMember] = useState("");
   const [tab, setTab] = useState<Tab>("overview");
   const [loading, setLoading] = useState(true);
@@ -142,6 +143,10 @@ export function ProjectDetailsWorkspace({
         setEndDate(loadedProject.endDate?.slice(0, 10) ?? "");
         setMembers(memberPayload.data.members as Member[]);
         setAvailableMembers((memberPayload.data.availableMembers ?? []) as Member[]);
+        const assignedManager = (
+          (memberPayload.data.mentionableMembers ?? []) as Array<{ id: string; name: string }>
+        ).find((member) => member.id === loadedProject.projectManagerId);
+        setAssignedManager(assignedManager ?? null);
         setLoading(false);
 
         if (managersRequest) {
@@ -175,10 +180,13 @@ export function ProjectDetailsWorkspace({
   const projectManagerName = useMemo(() => {
     if (project?.projectManagerId === userId && role === "project_manager") return "You";
     return (
+      (assignedManager && assignedManager.id === project?.projectManagerId
+        ? assignedManager.name
+        : undefined) ??
       managers.find((manager) => manager.id === project?.projectManagerId)?.name ??
       "Project manager"
     );
-  }, [managers, project?.projectManagerId, role, userId]);
+  }, [assignedManager, managers, project?.projectManagerId, role, userId]);
 
   async function saveSettings(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -214,6 +222,7 @@ export function ProjectDetailsWorkspace({
       }
       const updated = payload.data.project as Project;
       setProject(updated);
+      if (updated.projectManagerId !== project.projectManagerId) setAssignedManager(null);
       setNotice("Project settings saved.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not save settings.");
